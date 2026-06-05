@@ -56,31 +56,9 @@ type contextCheckMock struct {
 // mockRequestService — simple mock, does not check context
 // ============================================================================
 
-func (m *mockRequestService) Get(_ context.Context) (*api.Response, error) {
-	m.lastMethod = "GET"
-	return m.response, m.err
-}
-
 func (m *mockRequestService) Post(_ context.Context, body string) (*api.Response, error) {
 	m.lastMethod = "POST"
 	m.lastBody = body
-	return m.response, m.err
-}
-
-func (m *mockRequestService) Put(_ context.Context, body string) (*api.Response, error) {
-	m.lastMethod = "PUT"
-	m.lastBody = body
-	return m.response, m.err
-}
-
-func (m *mockRequestService) Patch(_ context.Context, body string) (*api.Response, error) {
-	m.lastMethod = "PATCH"
-	m.lastBody = body
-	return m.response, m.err
-}
-
-func (m *mockRequestService) Delete(_ context.Context) (*api.Response, error) {
-	m.lastMethod = "DELETE"
 	return m.response, m.err
 }
 
@@ -94,44 +72,10 @@ func (m *mockRequestService) Close() {}
 // mockRequestServiceWithDelay — respects context cancellation, simulates slow APIs
 // ============================================================================
 
-func (m *mockRequestServiceWithDelay) Get(ctx context.Context) (*api.Response, error) {
-	m.mu.Lock()
-	m.lastMethod = "GET"
-	m.callCount++
-	m.mu.Unlock()
-	return m.executeWithDelay(ctx)
-}
-
 func (m *mockRequestServiceWithDelay) Post(ctx context.Context, body string) (*api.Response, error) {
 	m.mu.Lock()
 	m.lastMethod = "POST"
 	m.lastBody = body
-	m.callCount++
-	m.mu.Unlock()
-	return m.executeWithDelay(ctx)
-}
-
-func (m *mockRequestServiceWithDelay) Put(ctx context.Context, body string) (*api.Response, error) {
-	m.mu.Lock()
-	m.lastMethod = "PUT"
-	m.lastBody = body
-	m.callCount++
-	m.mu.Unlock()
-	return m.executeWithDelay(ctx)
-}
-
-func (m *mockRequestServiceWithDelay) Patch(ctx context.Context, body string) (*api.Response, error) {
-	m.mu.Lock()
-	m.lastMethod = "PATCH"
-	m.lastBody = body
-	m.callCount++
-	m.mu.Unlock()
-	return m.executeWithDelay(ctx)
-}
-
-func (m *mockRequestServiceWithDelay) Delete(ctx context.Context) (*api.Response, error) {
-	m.mu.Lock()
-	m.lastMethod = "DELETE"
 	m.callCount++
 	m.mu.Unlock()
 	return m.executeWithDelay(ctx)
@@ -161,11 +105,6 @@ func (m *mockRequestServiceWithDelay) Close() {}
 // contextCheckMock — invokes OnPost callback for context propagation tests
 // ============================================================================
 
-func (m *contextCheckMock) Get(_ context.Context) (*api.Response, error) {
-	m.callCount++
-	return m.response, m.err
-}
-
 func (m *contextCheckMock) Post(ctx context.Context, _ string) (*api.Response, error) {
 	m.callCount++
 	if m.OnPost != nil {
@@ -174,21 +113,6 @@ func (m *contextCheckMock) Post(ctx context.Context, _ string) (*api.Response, e
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
-	return m.response, m.err
-}
-
-func (m *contextCheckMock) Put(_ context.Context, _ string) (*api.Response, error) {
-	m.callCount++
-	return m.response, m.err
-}
-
-func (m *contextCheckMock) Patch(_ context.Context, _ string) (*api.Response, error) {
-	m.callCount++
-	return m.response, m.err
-}
-
-func (m *contextCheckMock) Delete(_ context.Context) (*api.Response, error) {
-	m.callCount++
 	return m.response, m.err
 }
 

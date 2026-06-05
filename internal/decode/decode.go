@@ -577,8 +577,10 @@ func parsePoint(s string) (Point, error) {
 	coordStr := wkt
 	if is3D {
 		coordStr = strings.TrimPrefix(coordStr, "POINT Z (")
+		coordStr = strings.TrimPrefix(coordStr, "POINT Z(")
 	} else {
 		coordStr = strings.TrimPrefix(coordStr, "POINT (")
+		coordStr = strings.TrimPrefix(coordStr, "POINT(")
 	}
 	coordStr = strings.TrimSuffix(coordStr, ")")
 	coordStr = strings.TrimSpace(coordStr)

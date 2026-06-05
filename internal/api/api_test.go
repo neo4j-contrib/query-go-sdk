@@ -148,62 +148,6 @@ func TestAPIService_Post_UsesPostMethod(t *testing.T) {
 	}
 }
 
-func TestAPIService_Get_UsesGetMethod(t *testing.T) {
-	mock := testutil.NewMockHTTPService()
-	mock.WithResponse(http.StatusOK, `{"data":{"fields":[],"values":[]},"bookmarks":[]}`)
-	svc := newTestService(mock)
-
-	_, err := svc.Get(context.Background())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if mock.LastMethod != "GET" {
-		t.Errorf("expected GET, got %s", mock.LastMethod)
-	}
-}
-
-func TestAPIService_Delete_UsesDeleteMethod(t *testing.T) {
-	mock := testutil.NewMockHTTPService()
-	mock.WithResponse(http.StatusOK, `{}`)
-	svc := newTestService(mock)
-
-	_, err := svc.Delete(context.Background())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if mock.LastMethod != "DELETE" {
-		t.Errorf("expected DELETE, got %s", mock.LastMethod)
-	}
-}
-
-func TestAPIService_Put_UsesPutMethod(t *testing.T) {
-	mock := testutil.NewMockHTTPService()
-	mock.WithResponse(http.StatusOK, `{}`)
-	svc := newTestService(mock)
-
-	_, err := svc.Put(context.Background(), `{}`)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if mock.LastMethod != "PUT" {
-		t.Errorf("expected PUT, got %s", mock.LastMethod)
-	}
-}
-
-func TestAPIService_Patch_UsesPatchMethod(t *testing.T) {
-	mock := testutil.NewMockHTTPService()
-	mock.WithResponse(http.StatusOK, `{}`)
-	svc := newTestService(mock)
-
-	_, err := svc.Patch(context.Background(), `{}`)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if mock.LastMethod != "PATCH" {
-		t.Errorf("expected PATCH, got %s", mock.LastMethod)
-	}
-}
-
 // ============================================================================
 // Request headers
 // ============================================================================
@@ -412,7 +356,7 @@ func TestAPIService_ErrorResponse_404(t *testing.T) {
 	mock.WithResponse(http.StatusNotFound, `{"message":"Not Found"}`)
 	svc := newTestService(mock)
 
-	_, err := svc.Get(context.Background())
+	_, err := svc.Post(context.Background(), `{}`)
 	if err == nil {
 		t.Fatal("expected error for 404 response")
 	}
