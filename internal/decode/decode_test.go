@@ -510,10 +510,18 @@ func TestParseDuration(t *testing.T) {
 }
 
 func TestParseDuration_ZeroViaString(t *testing.T) {
-	// Zero Duration renders as "P0" via String().
+	// Zero Duration renders as "PT0S" — a valid ISO 8601 zero duration.
 	var zero Duration
-	if got := zero.String(); got != "P0" {
-		t.Errorf("zero.String() = %q, want P0", got)
+	if got := zero.String(); got != "PT0S" {
+		t.Errorf("zero.String() = %q, want PT0S", got)
+	}
+	// Verify the roundtrip: PT0S must parse back to a zero Duration.
+	parsed, err := parseDuration("PT0S")
+	if err != nil {
+		t.Fatalf("parseDuration(PT0S) unexpected error: %v", err)
+	}
+	if parsed != zero {
+		t.Errorf("parseDuration(PT0S) = %+v, want zero Duration", parsed)
 	}
 }
 

@@ -228,6 +228,9 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient sets a custom *http.Client to use for all API requests. This
 // lets callers inject a custom transport (e.g. for mTLS, proxies, or testing).
 // Returns an error if client is nil.
+//
+// Note: when a custom client is supplied, WithTimeout has no effect. The caller
+// is responsible for setting a Timeout on the provided *http.Client directly.
 func WithHTTPClient(client *http.Client) Option {
 	return func(o *options) error {
 		if client == nil {
@@ -261,23 +264,25 @@ var protectedHeaders = map[string]struct{}{
 }
 
 // WithDefaultHeaders adds the given headers to every API request. It is a no-op
-// when headers is nil or empty. Keys matching Authorization, Content-Type, or
-// User-Agent (case-insensitive) are silently ignored to protect credentials and
-// protocol semantics.
+// when headers is nil or empty. Keys matching Authorization, Content-Type,
+// Accept, or User-Agent (case-insensitive) are rejected with an error to prevent
+// callers from inadvertently overriding security-sensitive or protocol-critical
+// headers.
 func WithDefaultHeaders(headers map[string]string) Option {
 	return func(o *options) error {
 		if len(headers) == 0 {
 			return nil
 		}
-		filtered := make(map[string]string, len(headers))
-		for k, v := range headers {
-			if _, protected := protectedHeaders[strings.ToLower(k)]; !protected {
-				filtered[k] = v
+		for k := range headers {
+			if _, protected := protectedHeaders[strings.ToLower(k)]; protected {
+				return fmt.Errorf("WithDefaultHeaders: %q is a protected header and cannot be overridden; use WithBasicAuth, WithBearerToken, or WithUserAgent instead", k)
 			}
 		}
-		if len(filtered) > 0 {
-			o.config.defaultHeaders = filtered
+		filtered := make(map[string]string, len(headers))
+		for k, v := range headers {
+			filtered[k] = v
 		}
+		o.config.defaultHeaders = filtered
 		return nil
 	}
 }

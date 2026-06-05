@@ -252,7 +252,7 @@ func (d Duration) String() string {
 		}
 	}
 	if b.Len() == 1 {
-		b.WriteByte('0') // P0 for zero duration
+		b.WriteString("T0S") // PT0S — valid ISO 8601 zero duration
 	}
 	return b.String()
 }

@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/neo4j-contrib/query-go-sdk/internal/httpclient"
 	"github.com/neo4j-contrib/query-go-sdk/internal/utils"
@@ -83,7 +85,7 @@ func NewRequestService(cfg Config, logger *slog.Logger) RequestService {
 
 	return &apiRequestService{
 		httpClient:     httpSvc,
-		baseURL:        cfg.BaseURL,
+		baseURL:        strings.TrimRight(cfg.BaseURL, "/"),
 		database:       cfg.Database,
 		clientVersion:  cfg.ClientVersion,
 		userAgent:      userAgent,
@@ -145,29 +147,9 @@ func (s *apiRequestService) Discover(ctx context.Context) (*DiscoveryResponse, e
 	return &discovery, nil
 }
 
-// Get performs an authenticated GET request.
-func (s *apiRequestService) Get(ctx context.Context) (*Response, error) {
-	return s.doAuthenticatedRequest(ctx, http.MethodGet, "")
-}
-
 // Post performs an authenticated POST request.
 func (s *apiRequestService) Post(ctx context.Context, body string) (*Response, error) {
 	return s.doAuthenticatedRequest(ctx, http.MethodPost, body)
-}
-
-// Put performs an authenticated PUT request.
-func (s *apiRequestService) Put(ctx context.Context, body string) (*Response, error) {
-	return s.doAuthenticatedRequest(ctx, http.MethodPut, body)
-}
-
-// Patch performs an authenticated PATCH request.
-func (s *apiRequestService) Patch(ctx context.Context, body string) (*Response, error) {
-	return s.doAuthenticatedRequest(ctx, http.MethodPatch, body)
-}
-
-// Delete performs an authenticated DELETE request.
-func (s *apiRequestService) Delete(ctx context.Context) (*Response, error) {
-	return s.doAuthenticatedRequest(ctx, http.MethodDelete, "")
 }
 
 // doAuthenticatedRequest handles the common pattern of making an authenticated
@@ -188,15 +170,13 @@ func (s *apiRequestService) doAuthenticatedRequest(ctx context.Context, method, 
 	headers["User-Agent"] = s.userAgent
 	headers["Authorization"] = s.authHeader.Authorize()
 
-	fullURL := fmt.Sprintf("%s/db/%s/query/v2", s.baseURL, s.database)
+	fullURL := fmt.Sprintf("%s/db/%s/query/v2", s.baseURL, url.PathEscape(s.database))
 
 	s.logger.DebugContext(ctx, "making authenticated API request",
 		slog.String("URL", fullURL),
-		slog.String("header content", headers["Content-Type"]),
-		slog.String("header auth", headers["Authorization"]),
-		slog.String("header accept", headers["Accept"]),
 		slog.String("method", method),
-		slog.String("body", body),
+		slog.String("auth_scheme", strings.SplitN(headers["Authorization"], " ", 2)[0]),
+		slog.Int("body_bytes", len(body)),
 	)
 
 	var resp *httpclient.HTTPResponse
