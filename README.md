@@ -33,7 +33,7 @@ result, err := query.WithTransformer(client.Query, ctx,
 ## Installation
 
 ```bash
-go get github.com/LackOfMorals/query-go-sdk
+go get github.com/neo4j-contrib/query-go-sdk
 ```
 
 ## Quick Start
@@ -47,7 +47,7 @@ import (
     "log"
     "time"
 
-    query "github.com/LackOfMorals/query-go-sdk"
+    query "github.com/neo4j-contrib/query-go-sdk"
 )
 
 func main() {
@@ -534,7 +534,7 @@ Pushing the tag fires the Release workflow, which:
 Because this is a Go module with no compiled binaries, the tag itself is what consumers reference:
 
 ```bash
-go get github.com/LackOfMorals/query-go-sdk@vX.Y.Z
+go get github.com/neo4j-contrib/query-go-sdk@vX.Y.Z
 ```
 
 ### Adding a changelog entry

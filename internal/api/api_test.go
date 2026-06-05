@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LackOfMorals/query-go-sdk/internal/testutil"
+	"github.com/neo4j-contrib/query-go-sdk/internal/testutil"
 )
 
 func testLogger() *slog.Logger {

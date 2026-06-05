@@ -4,7 +4,7 @@ package query
 import (
 	"context"
 
-	"github.com/LackOfMorals/query-go-sdk/internal/decode"
+	"github.com/neo4j-contrib/query-go-sdk/internal/decode"
 )
 
 // QueryService defines operations for using the Query API

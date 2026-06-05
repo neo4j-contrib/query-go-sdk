@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LackOfMorals/query-go-sdk/internal/decode"
+	"github.com/neo4j-contrib/query-go-sdk/internal/decode"
 )
 
 // Record represents a single row in a query result with named field access.

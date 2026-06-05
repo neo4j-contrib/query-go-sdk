@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/LackOfMorals/query-go-sdk/internal/httpclient"
+	"github.com/neo4j-contrib/query-go-sdk/internal/httpclient"
 )
 
 // Response represents a response from the Query API.

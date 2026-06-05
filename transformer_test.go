@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LackOfMorals/query-go-sdk/internal/decode"
+	"github.com/neo4j-contrib/query-go-sdk/internal/decode"
 )
 
 // ============================================================================

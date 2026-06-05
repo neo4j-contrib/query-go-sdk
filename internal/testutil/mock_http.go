@@ -7,7 +7,7 @@ package testutil
 import (
 	"context"
 
-	"github.com/LackOfMorals/query-go-sdk/internal/httpclient"
+	"github.com/neo4j-contrib/query-go-sdk/internal/httpclient"
 )
 
 // MockHTTPService is a test double for httpclient.HTTPService.

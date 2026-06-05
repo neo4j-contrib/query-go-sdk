@@ -10,8 +10,8 @@ import (
 	"maps"
 	"net/http"
 
-	"github.com/LackOfMorals/query-go-sdk/internal/httpclient"
-	"github.com/LackOfMorals/query-go-sdk/internal/utils"
+	"github.com/neo4j-contrib/query-go-sdk/internal/httpclient"
+	"github.com/neo4j-contrib/query-go-sdk/internal/utils"
 )
 
 func (b *BasicCredentials) Authorize() string {

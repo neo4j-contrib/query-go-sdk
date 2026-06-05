@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	query "github.com/LackOfMorals/query-go-sdk"
+	query "github.com/neo4j-contrib/query-go-sdk"
 )
 
 // ─── Test server helpers ─────────────────────────────────────────────────────

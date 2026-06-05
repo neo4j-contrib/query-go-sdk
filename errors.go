@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/LackOfMorals/query-go-sdk/internal/api"
+	"github.com/neo4j-contrib/query-go-sdk/internal/api"
 )
 
 // Error represents an HTTP error response from the Neo4j Query API.

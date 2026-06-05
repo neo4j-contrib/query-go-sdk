@@ -16,7 +16,7 @@ import (
 
 	"log/slog"
 
-	"github.com/LackOfMorals/query-go-sdk/internal/httpclient"
+	"github.com/neo4j-contrib/query-go-sdk/internal/httpclient"
 )
 
 // newSvc creates an HTTPService suitable for behavioral tests.

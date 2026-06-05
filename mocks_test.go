@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LackOfMorals/query-go-sdk/internal/api"
+	"github.com/neo4j-contrib/query-go-sdk/internal/api"
 )
 
 // testLogger creates a logger for testing that writes warn+ to stderr.

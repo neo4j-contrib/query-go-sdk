@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LackOfMorals/query-go-sdk/internal/api"
+	"github.com/neo4j-contrib/query-go-sdk/internal/api"
 )
 
 func validQueryBody() []byte {

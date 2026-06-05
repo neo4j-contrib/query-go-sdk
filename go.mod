@@ -1,4 +1,4 @@
-module github.com/LackOfMorals/query-go-sdk
+module github.com/neo4j-contrib/query-go-sdk
 
 go 1.24
 
