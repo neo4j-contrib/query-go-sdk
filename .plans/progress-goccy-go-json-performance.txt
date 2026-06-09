@@ -21,3 +21,24 @@ Key Decisions:
 - b.ReportAllocs() retained so -benchmem is not required to see allocation counts
 
 Next Task: task-002
+================================================================================
+TASK-002: Capture baseline benchmark numbers (encoding/json)
+Date: 2026-06-09T00:00:00Z
+================================================================================
+
+Summary:
+Ran BenchmarkDecodeResponse and BenchmarkQueryService_Execute_* with encoding/json in place.
+Results saved to .plans/bench-before.txt for before/after comparison in the PR.
+
+Baseline numbers (encoding/json, Apple M1 Max, arm64):
+  BenchmarkDecodeResponse-10              366    9,936,356 ns/op    6,109,216 B/op    126,040 allocs/op
+  BenchmarkQueryService_Execute_Sequential-10    2,887,490    1,255 ns/op    952 B/op    19 allocs/op
+  BenchmarkQueryService_Execute_Parallel-10      5,439,442    661.4 ns/op    952 B/op    19 allocs/op
+
+Files Changed:
+- .plans/bench-before.txt (created - baseline benchmark output with encoding/json)
+
+Key Decisions:
+- Used -benchtime=3s for stable results
+
+Next Task: task-003

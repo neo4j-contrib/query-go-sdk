@@ -28,14 +28,14 @@ tasks:
       .plans/bench-before.txt. This covers BenchmarkDecodeResponse (added in task-001) and
       the existing BenchmarkQueryService_Execute_Sequential and BenchmarkQueryService_Execute_Parallel
       in context_test.go. The file will be used to produce the before/after table in the PR description.
-    status: pending
+    status: completed
     dependencies:
       - task-001
     acceptance_criteria:
       - ".plans/bench-before.txt exists and is non-empty"
       - "bench-before.txt contains BenchmarkDecodeResponse results with ns/op, B/op, allocs/op columns"
       - "bench-before.txt contains BenchmarkQueryService_Execute_Sequential results"
-    completed_at: null
+    completed_at: "2026-06-09T00:00:00Z"
 
   - id: task-003
     title: "Add github.com/goccy/go-json as a direct module dependency"

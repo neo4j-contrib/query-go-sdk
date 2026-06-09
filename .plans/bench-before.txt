@@ -1,0 +1,16 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/neo4j-contrib/query-go-sdk/internal/decode
+cpu: Apple M1 Max
+BenchmarkDecodeResponse-10    	     366	   9936356 ns/op	 6109216 B/op	  126040 allocs/op
+PASS
+ok  	github.com/neo4j-contrib/query-go-sdk/internal/decode	3.912s
+
+goos: darwin
+goarch: arm64
+pkg: github.com/neo4j-contrib/query-go-sdk
+cpu: Apple M1 Max
+BenchmarkQueryService_Execute_Sequential-10    	 2887490	      1255 ns/op	     952 B/op	      19 allocs/op
+BenchmarkQueryService_Execute_Parallel-10      	 5439442	       661.4 ns/op	     952 B/op	      19 allocs/op
+PASS
+ok  	github.com/neo4j-contrib/query-go-sdk	10.710s
