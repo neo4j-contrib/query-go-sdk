@@ -1,0 +1,125 @@
+feature: goccy-go-json-performance
+prd: ./prd-goccy-go-json-performance.md
+created_at: 2026-06-09T00:00:00Z
+updated_at: 2026-06-09T00:00:00Z
+
+tasks:
+  - id: task-001
+    title: "Add BenchmarkDecodeResponse to decode_test.go (baseline)"
+    description: |
+      Add a BenchmarkDecodeResponse function to internal/decode/decode_test.go while the
+      package still uses encoding/json, so the baseline numbers can be captured before the
+      library swap. The benchmark must synthesise a 1 000-row × 10-column wireResponse JSON
+      payload where every cell is a typed envelope ({"$type":"String","_value":"hello"}) and
+      call DecodeResponse on it in a b.N loop, reporting ns/op, B/op, and allocs/op.
+    status: completed
+    dependencies: []
+    acceptance_criteria:
+      - "BenchmarkDecodeResponse exists in internal/decode/decode_test.go"
+      - "The benchmark payload contains exactly 1 000 rows and 10 columns of typed envelopes"
+      - "go test -bench=BenchmarkDecodeResponse ./internal/decode/ runs to completion and prints ns/op, B/op, allocs/op"
+      - "No existing tests in decode_test.go are modified or broken"
+    completed_at: "2026-06-09T00:00:00Z"
+
+  - id: task-002
+    title: "Capture baseline benchmark numbers (encoding/json)"
+    description: |
+      Run the benchmark suite with encoding/json still in place and save the output to
+      .plans/bench-before.txt. This covers BenchmarkDecodeResponse (added in task-001) and
+      the existing BenchmarkQueryService_Execute_Sequential and BenchmarkQueryService_Execute_Parallel
+      in context_test.go. The file will be used to produce the before/after table in the PR description.
+    status: pending
+    dependencies:
+      - task-001
+    acceptance_criteria:
+      - ".plans/bench-before.txt exists and is non-empty"
+      - "bench-before.txt contains BenchmarkDecodeResponse results with ns/op, B/op, allocs/op columns"
+      - "bench-before.txt contains BenchmarkQueryService_Execute_Sequential results"
+    completed_at: null
+
+  - id: task-003
+    title: "Add github.com/goccy/go-json as a direct module dependency"
+    description: |
+      Run go get github.com/goccy/go-json to add the library to go.mod and go.sum.
+      Verify that go.mod lists it as a direct dependency and that go build ./... still succeeds.
+      This task makes no code changes to production or test files.
+    status: pending
+    dependencies:
+      - task-002
+    acceptance_criteria:
+      - "go.mod contains a require entry for github.com/goccy/go-json"
+      - "go.sum contains the corresponding hash entries"
+      - "go build ./... succeeds with no errors"
+    completed_at: null
+
+  - id: task-004
+    title: "Swap encoding/json imports in production files and fix type boundary in decode_test.go"
+    description: |
+      Replace the encoding/json import with github.com/goccy/go-json in the three production
+      files: query.go, internal/api/api.go, and internal/decode/decode.go. No logic changes
+      are permitted — only the import path changes. Then audit internal/decode/decode_test.go:
+      because DecodeValue and DecodeResponse accept json.RawMessage (now sourced from goccy/go-json),
+      any test helper that constructs json.RawMessage via encoding/json must switch its import to
+      github.com/goccy/go-json to avoid a package-boundary type mismatch.
+    status: pending
+    dependencies:
+      - task-003
+    acceptance_criteria:
+      - "query.go imports github.com/goccy/go-json and not encoding/json"
+      - "internal/api/api.go imports github.com/goccy/go-json and not encoding/json"
+      - "internal/decode/decode.go imports github.com/goccy/go-json and not encoding/json"
+      - "internal/decode/decode_test.go imports github.com/goccy/go-json (not encoding/json) wherever json.RawMessage is constructed"
+      - "No logic, error messages, or struct definitions are changed in any of the above files"
+    completed_at: null
+
+  - id: task-005
+    title: "Run full test suite and linter to verify compatibility"
+    description: |
+      Execute go test -race ./... -timeout 120s to confirm all existing unit and integration
+      tests pass after the import swap. Then run golangci-lint run to ensure no new lint
+      warnings are introduced. All 20+ Neo4j type coverage tests in decode_test.go (including
+      NaN, Infinity, Node, Relationship, Path, Vector) must pass.
+    status: pending
+    dependencies:
+      - task-004
+    acceptance_criteria:
+      - "go test -race ./... -timeout 120s exits with code 0"
+      - "No test failures or data races are reported"
+      - "golangci-lint run exits with code 0 and no new warnings"
+      - "go build ./... (including examples/) exits with code 0"
+    completed_at: null
+
+  - id: task-006
+    title: "Capture post-swap benchmark numbers and produce before/after comparison"
+    description: |
+      Run the same benchmark suite used in task-002 (BenchmarkDecodeResponse,
+      BenchmarkQueryService_Execute_Sequential, BenchmarkQueryService_Execute_Parallel) with
+      goccy/go-json in place and save output to .plans/bench-after.txt. Then produce a
+      markdown before/after comparison table in .plans/bench-comparison.md covering ns/op,
+      B/op, and allocs/op for each benchmark. This file will be copied into the PR description.
+    status: pending
+    dependencies:
+      - task-005
+    acceptance_criteria:
+      - ".plans/bench-after.txt exists and is non-empty"
+      - "bench-after.txt contains BenchmarkDecodeResponse results with goccy/go-json"
+      - ".plans/bench-comparison.md exists and contains a markdown table comparing before/after for all three benchmarks"
+      - "bench-comparison.md shows ns/op, B/op, and allocs/op columns for both before and after"
+    completed_at: null
+
+  - id: task-007
+    title: "Add changie fragment for the performance improvement"
+    description: |
+      Create a changie fragment in .changes/unreleased/ of kind Changed that records the
+      replacement of encoding/json with goccy/go-json and summarises the performance
+      improvement shown in the benchmark comparison. The fragment filename must follow the
+      changie naming convention (e.g. timestamp-based YAML file). Do not run changie new
+      interactively; write the YAML file directly.
+    status: pending
+    dependencies:
+      - task-006
+    acceptance_criteria:
+      - "A new YAML file exists in .changes/unreleased/ with kind: Changed"
+      - "The fragment body mentions goccy/go-json and the performance improvement"
+      - "The file follows the changie YAML schema (kind, body fields at minimum)"
+    completed_at: null

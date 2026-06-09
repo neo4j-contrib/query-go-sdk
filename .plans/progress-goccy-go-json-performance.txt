@@ -1,0 +1,23 @@
+================================================================================
+TASK-001: Add BenchmarkDecodeResponse to decode_test.go (baseline)
+Date: 2026-06-09T00:00:00Z
+================================================================================
+
+Summary:
+Added benchmarkPayload helper and BenchmarkDecodeResponse to internal/decode/decode_test.go.
+The benchmark synthesises a 1000-row × 10-column wireResponse payload (each cell a typed
+String envelope) and calls DecodeResponse in a b.Loop() loop. Used b.Loop() (Go 1.24+)
+instead of the classic for i := 0; i < b.N; i++ pattern to satisfy the bloop linter rule.
+
+Baseline numbers (encoding/json, Apple M1 Max, arm64):
+  BenchmarkDecodeResponse-10    121    9,809,566 ns/op    6,109,272 B/op    126,040 allocs/op
+
+Files Changed:
+- internal/decode/decode_test.go (modified - added benchmarkPayload helper and BenchmarkDecodeResponse)
+
+Key Decisions:
+- Used b.Loop() not for i := 0; i < b.N; i++ — Go 1.24 project, bloop linter enforces this
+- b.ResetTimer() removed (b.Loop() handles timer management internally)
+- b.ReportAllocs() retained so -benchmem is not required to see allocation counts
+
+Next Task: task-002
