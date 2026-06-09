@@ -116,3 +116,30 @@ Files Changed:
 - .plans/tasks-goccy-go-json-performance.yml (modified - task-005 status: in_progress → completed)
 
 Next Task: task-006
+================================================================================
+TASK-006: Capture post-swap benchmark numbers and produce before/after comparison
+Date: 2026-06-09T00:00:00Z
+================================================================================
+
+Summary:
+Ran BenchmarkDecodeResponse and BenchmarkQueryService_Execute_* with goccy/go-json in place.
+Results saved to .plans/bench-after.txt. Produced .plans/bench-comparison.md with a full
+before/after markdown table covering ns/op, B/op, and allocs/op for all three benchmarks.
+Code review found zero issues; all arithmetic verified correct.
+
+Post-swap numbers (goccy/go-json, Apple M1 Max, arm64):
+  BenchmarkDecodeResponse-10              1,065    3,277,797 ns/op    3,605,160 B/op    103,042 allocs/op
+  BenchmarkQueryService_Execute_Sequential-10    6,336,156    560.1 ns/op    649 B/op    10 allocs/op
+  BenchmarkQueryService_Execute_Parallel-10      6,903,080    525.1 ns/op    650 B/op    10 allocs/op
+
+Key improvements vs encoding/json baseline:
+  BenchmarkDecodeResponse:           -67.0 % ns/op, -41.0 % B/op, -18.2 % allocs/op
+  BenchmarkQueryService_Execute_Sequential: -55.4 % ns/op, -31.8 % B/op, -47.4 % allocs/op
+  BenchmarkQueryService_Execute_Parallel:   -20.6 % ns/op, -31.7 % B/op, -47.4 % allocs/op
+
+Files Changed:
+- .plans/bench-after.txt (created - post-swap benchmark output with goccy/go-json)
+- .plans/bench-comparison.md (created - before/after markdown table for all three benchmarks)
+- .plans/tasks-goccy-go-json-performance.yml (modified - task-006 status: in_progress → completed)
+
+Next Task: task-007

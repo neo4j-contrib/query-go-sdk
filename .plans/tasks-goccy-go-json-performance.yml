@@ -97,7 +97,7 @@ tasks:
       goccy/go-json in place and save output to .plans/bench-after.txt. Then produce a
       markdown before/after comparison table in .plans/bench-comparison.md covering ns/op,
       B/op, and allocs/op for each benchmark. This file will be copied into the PR description.
-    status: pending
+    status: completed
     dependencies:
       - task-005
     acceptance_criteria:
@@ -105,7 +105,7 @@ tasks:
       - "bench-after.txt contains BenchmarkDecodeResponse results with goccy/go-json"
       - ".plans/bench-comparison.md exists and contains a markdown table comparing before/after for all three benchmarks"
       - "bench-comparison.md shows ns/op, B/op, and allocs/op columns for both before and after"
-    completed_at: null
+    completed_at: "2026-06-09T00:00:00Z"
 
   - id: task-007
     title: "Add changie fragment for the performance improvement"
