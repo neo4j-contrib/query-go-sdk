@@ -115,7 +115,7 @@ tasks:
       improvement shown in the benchmark comparison. The fragment filename must follow the
       changie naming convention (e.g. timestamp-based YAML file). Do not run changie new
       interactively; write the YAML file directly.
-    status: pending
+    status: in_progress
     dependencies:
       - task-006
     acceptance_criteria:
