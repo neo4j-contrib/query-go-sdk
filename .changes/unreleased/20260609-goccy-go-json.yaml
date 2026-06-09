@@ -1,2 +1,0 @@
-kind: Changed
-body: Replace encoding/json with github.com/goccy/go-json in all production and test files, reducing BenchmarkDecodeResponse latency by ~67 % (9.9 ms → 3.3 ms), heap allocations by ~41 %, and allocation count by ~18 % on the full wire-response decode path.
