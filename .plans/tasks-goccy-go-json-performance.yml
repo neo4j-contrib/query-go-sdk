@@ -61,7 +61,7 @@ tasks:
       because DecodeValue and DecodeResponse accept json.RawMessage (now sourced from goccy/go-json),
       any test helper that constructs json.RawMessage via encoding/json must switch its import to
       github.com/goccy/go-json to avoid a package-boundary type mismatch.
-    status: pending
+    status: completed
     dependencies:
       - task-003
     acceptance_criteria:
@@ -70,7 +70,7 @@ tasks:
       - "internal/decode/decode.go imports github.com/goccy/go-json and not encoding/json"
       - "internal/decode/decode_test.go imports github.com/goccy/go-json (not encoding/json) wherever json.RawMessage is constructed"
       - "No logic, error messages, or struct definitions are changed in any of the above files"
-    completed_at: null
+    completed_at: "2026-06-09T00:00:00Z"
 
   - id: task-005
     title: "Run full test suite and linter to verify compatibility"

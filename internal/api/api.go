@@ -4,13 +4,14 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/goccy/go-json"
 
 	"github.com/neo4j-contrib/query-go-sdk/internal/httpclient"
 	"github.com/neo4j-contrib/query-go-sdk/internal/utils"

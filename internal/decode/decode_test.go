@@ -1,9 +1,9 @@
 package decode
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/goccy/go-json"
 	"math"
 	"strings"
 	"testing"

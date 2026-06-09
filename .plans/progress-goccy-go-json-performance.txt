@@ -61,3 +61,29 @@ Key Decisions:
 - Accepted // indirect status as a known transient state until task-004 adds imports
 
 Next Task: task-004
+================================================================================
+TASK-004: Swap encoding/json imports in production files and fix type boundary
+Date: 2026-06-09T00:00:00Z
+================================================================================
+
+Summary:
+Replaced encoding/json with github.com/goccy/go-json in query.go, internal/api/api.go,
+internal/decode/decode.go, internal/decode/decode_test.go, and query_test.go (same package
+as query.go, uses json.RawMessage). Also fixed strings.IndexByte → strings.Cut in decode.go
+(pre-existing stringscut lint warning exposed after import change). Ran go fmt to fix
+gofmt formatting flagged by golangci-lint. All tests pass, 0 lint issues.
+
+Files Changed:
+- query.go (modified - encoding/json → goccy/go-json)
+- internal/api/api.go (modified - encoding/json → goccy/go-json, import group reordered)
+- internal/decode/decode.go (modified - encoding/json → goccy/go-json; strings.IndexByte → strings.Cut)
+- internal/decode/decode_test.go (modified - encoding/json → goccy/go-json)
+- query_test.go (modified - encoding/json → goccy/go-json)
+- go.mod (modified - goccy/go-json promoted from // indirect to direct after import lands)
+
+Key Decisions:
+- Also updated query_test.go (same package as query.go) for type-boundary consistency
+- strings.Cut fix included since lint flagged it and task-005 requires lint clean
+- gofmt places goccy/go-json alphabetically within stdlib block; acceptable since project uses gofmt not goimports
+
+Next Task: task-005
