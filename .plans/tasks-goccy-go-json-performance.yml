@@ -43,14 +43,14 @@ tasks:
       Run go get github.com/goccy/go-json to add the library to go.mod and go.sum.
       Verify that go.mod lists it as a direct dependency and that go build ./... still succeeds.
       This task makes no code changes to production or test files.
-    status: pending
+    status: completed
     dependencies:
       - task-002
     acceptance_criteria:
       - "go.mod contains a require entry for github.com/goccy/go-json"
       - "go.sum contains the corresponding hash entries"
       - "go build ./... succeeds with no errors"
-    completed_at: null
+    completed_at: "2026-06-09T00:00:00Z"
 
   - id: task-004
     title: "Swap encoding/json imports in production files and fix type boundary in decode_test.go"

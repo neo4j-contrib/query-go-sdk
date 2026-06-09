@@ -42,3 +42,22 @@ Key Decisions:
 - Used -benchtime=3s for stable results
 
 Next Task: task-003
+================================================================================
+TASK-003: Add github.com/goccy/go-json as a direct module dependency
+Date: 2026-06-09T00:00:00Z
+================================================================================
+
+Summary:
+Ran go get github.com/goccy/go-json@v0.10.6. Entry appears as // indirect in go.mod
+because no source file imports it yet — this is expected and will be resolved by task-004.
+go mod tidy would strip it before task-004 lands, so these two tasks must stay in the same
+PR branch with no intervening go mod tidy run.
+
+Files Changed:
+- go.mod (modified - added github.com/goccy/go-json v0.10.6 // indirect)
+- go.sum (modified - added hash entries for goccy/go-json)
+
+Key Decisions:
+- Accepted // indirect status as a known transient state until task-004 adds imports
+
+Next Task: task-004
