@@ -2,8 +2,8 @@ package decode
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
+	"github.com/goccy/go-json"
 	"math"
 	"strconv"
 	"strings"
@@ -523,13 +523,12 @@ func parseDuration(s string) (Duration, error) {
 			}
 			d.Seconds += n * 3600
 		case 'S':
-			if dot := strings.IndexByte(numStr, '.'); dot >= 0 {
-				secs, err := strconv.ParseInt(numStr[:dot], 10, 64)
+			if integer, frac, hasFrac := strings.Cut(numStr, "."); hasFrac {
+				secs, err := strconv.ParseInt(integer, 10, 64)
 				if err != nil {
 					return Duration{}, fmt.Errorf("decode Duration seconds %q: %w", numStr, err)
 				}
 				// Pad or truncate fractional part to 9 digits (nanoseconds).
-				frac := numStr[dot+1:]
 				for len(frac) < 9 {
 					frac += "0"
 				}

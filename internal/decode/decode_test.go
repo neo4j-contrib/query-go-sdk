@@ -1,9 +1,11 @@
 package decode
 
 import (
-	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/goccy/go-json"
 	"math"
+	"strings"
 	"testing"
 	"time"
 )
@@ -478,6 +480,58 @@ func TestDecodeValue_InvalidJSON(t *testing.T) {
 	_, err := DecodeValue(json.RawMessage(`{bad`))
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+// ============================================================================
+// Benchmarks
+// ============================================================================
+
+// benchmarkPayload builds a wireResponse JSON payload with the given number of
+// rows and columns. Every cell is a typed String envelope:
+//
+//	{"$type":"String","_value":"hello"}
+func benchmarkPayload(rows, cols int) []byte {
+	cell := `{"$type":"String","_value":"hello"}`
+
+	// Build the fields array: ["col0","col1",...]
+	fields := make([]string, cols)
+	for i := range fields {
+		fields[i] = fmt.Sprintf(`"col%d"`, i)
+	}
+
+	// Build one row: [cell, cell, ...]
+	rowCells := make([]string, cols)
+	for i := range rowCells {
+		rowCells[i] = cell
+	}
+	oneRow := "[" + strings.Join(rowCells, ",") + "]"
+
+	// Build all rows.
+	allRows := make([]string, rows)
+	for i := range allRows {
+		allRows[i] = oneRow
+	}
+
+	payload := fmt.Sprintf(
+		`{"data":{"fields":[%s],"values":[%s]},"bookmarks":[],"notifications":[],"errors":[]}`,
+		strings.Join(fields, ","),
+		strings.Join(allRows, ","),
+	)
+	return []byte(payload)
+}
+
+// BenchmarkDecodeResponse measures DecodeResponse on a 1000-row × 10-column
+// wireResponse payload where every cell is a typed String envelope.
+// Run with -benchmem to capture B/op and allocs/op alongside ns/op.
+func BenchmarkDecodeResponse(b *testing.B) {
+	payload := benchmarkPayload(1000, 10)
+	b.ReportAllocs()
+	for b.Loop() {
+		_, err := DecodeResponse(payload)
+		if err != nil {
+			b.Fatalf("DecodeResponse error: %v", err)
+		}
 	}
 }
 

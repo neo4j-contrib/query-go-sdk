@@ -1,0 +1,145 @@
+================================================================================
+TASK-001: Add BenchmarkDecodeResponse to decode_test.go (baseline)
+Date: 2026-06-09T00:00:00Z
+================================================================================
+
+Summary:
+Added benchmarkPayload helper and BenchmarkDecodeResponse to internal/decode/decode_test.go.
+The benchmark synthesises a 1000-row × 10-column wireResponse payload (each cell a typed
+String envelope) and calls DecodeResponse in a b.Loop() loop. Used b.Loop() (Go 1.24+)
+instead of the classic for i := 0; i < b.N; i++ pattern to satisfy the bloop linter rule.
+
+Baseline numbers (encoding/json, Apple M1 Max, arm64):
+  BenchmarkDecodeResponse-10    121    9,809,566 ns/op    6,109,272 B/op    126,040 allocs/op
+
+Files Changed:
+- internal/decode/decode_test.go (modified - added benchmarkPayload helper and BenchmarkDecodeResponse)
+
+Key Decisions:
+- Used b.Loop() not for i := 0; i < b.N; i++ — Go 1.24 project, bloop linter enforces this
+- b.ResetTimer() removed (b.Loop() handles timer management internally)
+- b.ReportAllocs() retained so -benchmem is not required to see allocation counts
+
+Next Task: task-002
+================================================================================
+TASK-002: Capture baseline benchmark numbers (encoding/json)
+Date: 2026-06-09T00:00:00Z
+================================================================================
+
+Summary:
+Ran BenchmarkDecodeResponse and BenchmarkQueryService_Execute_* with encoding/json in place.
+Results saved to .plans/bench-before.txt for before/after comparison in the PR.
+
+Baseline numbers (encoding/json, Apple M1 Max, arm64):
+  BenchmarkDecodeResponse-10              366    9,936,356 ns/op    6,109,216 B/op    126,040 allocs/op
+  BenchmarkQueryService_Execute_Sequential-10    2,887,490    1,255 ns/op    952 B/op    19 allocs/op
+  BenchmarkQueryService_Execute_Parallel-10      5,439,442    661.4 ns/op    952 B/op    19 allocs/op
+
+Files Changed:
+- .plans/bench-before.txt (created - baseline benchmark output with encoding/json)
+
+Key Decisions:
+- Used -benchtime=3s for stable results
+
+Next Task: task-003
+================================================================================
+TASK-003: Add github.com/goccy/go-json as a direct module dependency
+Date: 2026-06-09T00:00:00Z
+================================================================================
+
+Summary:
+Ran go get github.com/goccy/go-json@v0.10.6. Entry appears as // indirect in go.mod
+because no source file imports it yet — this is expected and will be resolved by task-004.
+go mod tidy would strip it before task-004 lands, so these two tasks must stay in the same
+PR branch with no intervening go mod tidy run.
+
+Files Changed:
+- go.mod (modified - added github.com/goccy/go-json v0.10.6 // indirect)
+- go.sum (modified - added hash entries for goccy/go-json)
+
+Key Decisions:
+- Accepted // indirect status as a known transient state until task-004 adds imports
+
+Next Task: task-004
+================================================================================
+TASK-004: Swap encoding/json imports in production files and fix type boundary
+Date: 2026-06-09T00:00:00Z
+================================================================================
+
+Summary:
+Replaced encoding/json with github.com/goccy/go-json in query.go, internal/api/api.go,
+internal/decode/decode.go, internal/decode/decode_test.go, and query_test.go (same package
+as query.go, uses json.RawMessage). Also fixed strings.IndexByte → strings.Cut in decode.go
+(pre-existing stringscut lint warning exposed after import change). Ran go fmt to fix
+gofmt formatting flagged by golangci-lint. All tests pass, 0 lint issues.
+
+Files Changed:
+- query.go (modified - encoding/json → goccy/go-json)
+- internal/api/api.go (modified - encoding/json → goccy/go-json, import group reordered)
+- internal/decode/decode.go (modified - encoding/json → goccy/go-json; strings.IndexByte → strings.Cut)
+- internal/decode/decode_test.go (modified - encoding/json → goccy/go-json)
+- query_test.go (modified - encoding/json → goccy/go-json)
+- go.mod (modified - goccy/go-json promoted from // indirect to direct after import lands)
+
+Key Decisions:
+- Also updated query_test.go (same package as query.go) for type-boundary consistency
+- strings.Cut fix included since lint flagged it and task-005 requires lint clean
+- gofmt places goccy/go-json alphabetically within stdlib block; acceptable since project uses gofmt not goimports
+
+Next Task: task-005
+================================================================================
+TASK-005: Run full test suite and linter to verify compatibility
+Date: 2026-06-09T00:00:00Z
+================================================================================
+
+Summary:
+Ran all three verification commands against the post-swap codebase. All packages
+pass with race detector enabled, build is clean, and golangci-lint reports 0 issues.
+
+Command results:
+  go test -race ./... -timeout 120s
+    ok  github.com/neo4j-contrib/query-go-sdk                (cached)
+    ok  github.com/neo4j-contrib/query-go-sdk/internal/api    (cached)
+    ok  github.com/neo4j-contrib/query-go-sdk/internal/decode (cached)
+    ok  github.com/neo4j-contrib/query-go-sdk/internal/httpclient (cached)
+    ok  github.com/neo4j-contrib/query-go-sdk/internal/utils  (cached)
+    Exit code: 0
+
+  go build ./...
+    Exit code: 0 (no output)
+
+  golangci-lint run
+    0 issues.
+    Exit code: 0
+
+Files Changed:
+- .plans/tasks-goccy-go-json-performance.yml (modified - task-005 status: in_progress → completed)
+
+Next Task: task-006
+================================================================================
+TASK-006: Capture post-swap benchmark numbers and produce before/after comparison
+Date: 2026-06-09T00:00:00Z
+================================================================================
+
+Summary:
+Ran BenchmarkDecodeResponse and BenchmarkQueryService_Execute_* with goccy/go-json in place.
+Results saved to .plans/bench-after.txt. Produced .plans/bench-comparison.md with a full
+before/after markdown table covering ns/op, B/op, and allocs/op for all three benchmarks.
+Code review found zero issues; all arithmetic verified correct.
+
+Post-swap numbers (goccy/go-json, Apple M1 Max, arm64):
+  BenchmarkDecodeResponse-10              1,065    3,277,797 ns/op    3,605,160 B/op    103,042 allocs/op
+  BenchmarkQueryService_Execute_Sequential-10    6,336,156    560.1 ns/op    649 B/op    10 allocs/op
+  BenchmarkQueryService_Execute_Parallel-10      6,903,080    525.1 ns/op    650 B/op    10 allocs/op
+
+Key improvements vs encoding/json baseline:
+  BenchmarkDecodeResponse:           -67.0 % ns/op, -41.0 % B/op, -18.2 % allocs/op
+  BenchmarkQueryService_Execute_Sequential: -55.4 % ns/op, -31.8 % B/op, -47.4 % allocs/op
+  BenchmarkQueryService_Execute_Parallel:   -20.6 % ns/op, -31.7 % B/op, -47.4 % allocs/op
+
+Files Changed:
+- .plans/bench-after.txt (created - post-swap benchmark output with goccy/go-json)
+- .plans/bench-comparison.md (created - before/after markdown table for all three benchmarks)
+- .plans/tasks-goccy-go-json-performance.yml (modified - task-006 status: in_progress → completed)
+
+Next Task: task-007
