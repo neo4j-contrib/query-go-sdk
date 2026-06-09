@@ -87,3 +87,32 @@ Key Decisions:
 - gofmt places goccy/go-json alphabetically within stdlib block; acceptable since project uses gofmt not goimports
 
 Next Task: task-005
+================================================================================
+TASK-005: Run full test suite and linter to verify compatibility
+Date: 2026-06-09T00:00:00Z
+================================================================================
+
+Summary:
+Ran all three verification commands against the post-swap codebase. All packages
+pass with race detector enabled, build is clean, and golangci-lint reports 0 issues.
+
+Command results:
+  go test -race ./... -timeout 120s
+    ok  github.com/neo4j-contrib/query-go-sdk                (cached)
+    ok  github.com/neo4j-contrib/query-go-sdk/internal/api    (cached)
+    ok  github.com/neo4j-contrib/query-go-sdk/internal/decode (cached)
+    ok  github.com/neo4j-contrib/query-go-sdk/internal/httpclient (cached)
+    ok  github.com/neo4j-contrib/query-go-sdk/internal/utils  (cached)
+    Exit code: 0
+
+  go build ./...
+    Exit code: 0 (no output)
+
+  golangci-lint run
+    0 issues.
+    Exit code: 0
+
+Files Changed:
+- .plans/tasks-goccy-go-json-performance.yml (modified - task-005 status: in_progress → completed)
+
+Next Task: task-006

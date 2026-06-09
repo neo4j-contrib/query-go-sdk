@@ -79,7 +79,7 @@ tasks:
       tests pass after the import swap. Then run golangci-lint run to ensure no new lint
       warnings are introduced. All 20+ Neo4j type coverage tests in decode_test.go (including
       NaN, Infinity, Node, Relationship, Path, Vector) must pass.
-    status: pending
+    status: completed
     dependencies:
       - task-004
     acceptance_criteria:
@@ -87,7 +87,7 @@ tasks:
       - "No test failures or data races are reported"
       - "golangci-lint run exits with code 0 and no new warnings"
       - "go build ./... (including examples/) exits with code 0"
-    completed_at: null
+    completed_at: "2026-06-09T00:00:00Z"
 
   - id: task-006
     title: "Capture post-swap benchmark numbers and produce before/after comparison"
