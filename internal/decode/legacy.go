@@ -14,8 +14,8 @@ type legacyWireResponse struct {
 }
 
 type legacyResult struct {
-	Columns []string          `json:"columns"`
-	Data    []legacyDataItem  `json:"data"`
+	Columns []string         `json:"columns"`
+	Data    []legacyDataItem `json:"data"`
 }
 
 type legacyDataItem struct {
