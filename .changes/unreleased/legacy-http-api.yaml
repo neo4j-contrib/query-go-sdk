@@ -1,0 +1,2 @@
+kind: Added
+body: "WithAPIFlavor option selects between the Query API v2 (/db/{db}/query/v2) and the legacy Cypher HTTP Transaction API (/db/{db}/tx/commit); use FlavorLegacyHTTP for comparison testing against older Neo4j deployments"

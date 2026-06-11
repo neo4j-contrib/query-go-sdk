@@ -92,6 +92,7 @@ func NewRequestService(cfg Config, logger *slog.Logger) RequestService {
 		userAgent:      userAgent,
 		defaultHeaders: cfg.DefaultHeaders,
 		authHeader:     cfg.AuthHeader,
+		useLegacyHTTP:  cfg.UseLegacyHTTP,
 		logger:         logger,
 	}
 }
@@ -167,11 +168,20 @@ func (s *apiRequestService) doAuthenticatedRequest(ctx context.Context, method, 
 	headers := make(map[string]string, len(s.defaultHeaders)+3)
 	maps.Copy(headers, s.defaultHeaders)
 	headers["Content-Type"] = "application/json"
-	headers["Accept"] = "application/vnd.neo4j.query"
+	if s.useLegacyHTTP {
+		headers["Accept"] = "application/json"
+	} else {
+		headers["Accept"] = "application/vnd.neo4j.query"
+	}
 	headers["User-Agent"] = s.userAgent
 	headers["Authorization"] = s.authHeader.Authorize()
 
-	fullURL := fmt.Sprintf("%s/db/%s/query/v2", s.baseURL, url.PathEscape(s.database))
+	var fullURL string
+	if s.useLegacyHTTP {
+		fullURL = fmt.Sprintf("%s/db/%s/tx/commit", s.baseURL, url.PathEscape(s.database))
+	} else {
+		fullURL = fmt.Sprintf("%s/db/%s/query/v2", s.baseURL, url.PathEscape(s.database))
+	}
 
 	s.logger.DebugContext(ctx, "making authenticated API request",
 		slog.String("URL", fullURL),
