@@ -57,6 +57,7 @@ type Config struct {
 	HTTPClient      *http.Client      // optional custom HTTP client; when non-nil it replaces the default transport
 	DefaultHeaders  map[string]string // optional headers merged into every authenticated request
 	MaxResponseSize int               // The max size for a response.  Default is 10Mb
+	UseLegacyHTTP   bool              // target /db/{db}/tx/commit instead of /db/{db}/query/v2
 }
 
 // apiRequestService is the concrete implementation of RequestService.
@@ -68,6 +69,7 @@ type apiRequestService struct {
 	clientVersion  string
 	userAgent      string
 	defaultHeaders map[string]string
+	useLegacyHTTP  bool
 	logger         *slog.Logger
 }
 

@@ -16,6 +16,7 @@ result, err := query.WithTransformer(client.Query, ctx,
 - [Quick Start](#quick-start)
 - [Authentication](#authentication)
 - [Configuration](#configuration)
+- [API Flavors](#api-flavors)
 - [Context and Timeouts](#context-and-timeouts)
 - [Executing Queries](#executing-queries)
 - [Transformers](#transformers)
@@ -118,6 +119,7 @@ client, err := query.NewClient(
 | `WithUserAgent(ua)` | `query-go-sdk/<version>` | Value of the `User-Agent` header |
 | `WithMaxResponseSize(n)` | 10MB | Maximum response body size in bytes; returns an error if exceeded |
 | `WithDefaultHeaders(map)` | — | Extra headers sent with every request; `Authorization`, `Content-Type`, `Accept`, and `User-Agent` are protected and cannot be overridden |
+| `WithAPIFlavor(f)` | `FlavorQueryV2` | Select which HTTP API endpoint to target; see [API Flavors](#api-flavors) |
 
 ```go
 client, err := query.NewClient(
@@ -131,6 +133,37 @@ client, err := query.NewClient(
     }),
 )
 ```
+
+---
+
+## API Flavors
+
+The SDK supports two Neo4j HTTP APIs, selectable via `WithAPIFlavor`:
+
+| Constant | Endpoint | Response format | Default |
+|---|---|---|---|
+| `query.FlavorQueryV2` | `/db/{db}/query/v2` | Typed JSON (`$type` envelopes) | yes |
+| `query.FlavorLegacyHTTP` | `/db/{db}/tx/commit` | Plain JSON row format | — |
+
+`FlavorQueryV2` is the default and requires no explicit configuration.
+
+### Targeting the legacy HTTP API
+
+Use `FlavorLegacyHTTP` to send queries to the older Cypher HTTP Transaction API. This is useful for performance comparison testing or for connecting to Neo4j versions that pre-date the Query API.
+
+```go
+client, err := query.NewClient(
+    query.WithBasicAuth("neo4j", "password"),
+    query.WithBaseURL("http://localhost:7474"),
+    query.WithAPIFlavor(query.FlavorLegacyHTTP),
+)
+```
+
+Everything else — transformers, records, error handling — works identically for both flavors.
+
+#### Type mapping differences
+
+The legacy API returns row values as plain JSON without typed envelopes. Scalars (`string`, `int64`, `float64`, `bool`, `nil`) decode identically to `FlavorQueryV2`. However, graph entities are returned as plain `map[string]any` instead of `*query.Node` / `*query.Relationship`, because the `/tx/commit` endpoint does not include element IDs or labels in the row format. `rec.GetNode` and `rec.GetRelationship` will return `(nil, false)` for those values.
 
 ---
 

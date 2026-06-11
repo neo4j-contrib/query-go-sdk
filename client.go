@@ -75,6 +75,23 @@ func init() {
 }
 
 // ============================================================================
+// API flavour
+// ============================================================================
+
+// APIFlavor selects which Neo4j HTTP API the client will target.
+type APIFlavor int
+
+const (
+	// FlavorQueryV2 targets the modern Query API v2 endpoint (/db/{db}/query/v2).
+	// This is the default.
+	FlavorQueryV2 APIFlavor = iota
+	// FlavorLegacyHTTP targets the older Cypher HTTP Transaction API
+	// endpoint (/db/{db}/tx/commit). Use this for comparison testing against
+	// Neo4j versions that pre-date the Query API.
+	FlavorLegacyHTTP
+)
+
+// ============================================================================
 // Client types
 // ============================================================================
 
@@ -101,6 +118,7 @@ type config struct {
 	defaultHeaders  map[string]string // optional headers added to every API request
 	maxResponseSize int               // optional max response size in bytes
 	clientVersion   string            // the version of this query client
+	flavor          APIFlavor         // which HTTP API endpoint to target
 }
 
 // Option is a functional option for configuring the AuraAPIClient.
@@ -287,6 +305,16 @@ func WithDefaultHeaders(headers map[string]string) Option {
 	}
 }
 
+// WithAPIFlavor selects which Neo4j HTTP API endpoint the client targets.
+// Use FlavorLegacyHTTP to target the older Cypher HTTP Transaction API
+// (/db/{db}/tx/commit) for comparison testing. Defaults to FlavorQueryV2.
+func WithAPIFlavor(flavor APIFlavor) Option {
+	return func(o *options) error {
+		o.config.flavor = flavor
+		return nil
+	}
+}
+
 // Close drains idle HTTP connections held by the underlying transport. It
 // should be called via defer when the client is no longer needed to avoid
 // leaking file descriptors.
@@ -394,6 +422,7 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 		HTTPClient:      o.config.httpClient,
 		DefaultHeaders:  o.config.defaultHeaders,
 		MaxResponseSize: o.config.maxResponseSize,
+		UseLegacyHTTP:   o.config.flavor == FlavorLegacyHTTP,
 	}, o.logger)
 
 	clientLogger := o.logger.With(slog.String("component", "QueryAPIClient"))
@@ -404,9 +433,10 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 	}
 
 	service.Query = &queryService{
-		api:     apiSvc,
-		timeout: o.config.apiTimeout,
-		logger:  clientLogger.With(slog.String("service", "queryService")),
+		api:           apiSvc,
+		timeout:       o.config.apiTimeout,
+		logger:        clientLogger.With(slog.String("service", "queryService")),
+		useLegacyHTTP: o.config.flavor == FlavorLegacyHTTP,
 	}
 
 	service.logger.Info("Query API client initialized successfully",

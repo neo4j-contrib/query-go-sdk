@@ -16,13 +16,24 @@ import (
 // ============================================================================
 
 type queryService struct {
-	api     api.RequestService
-	timeout time.Duration
-	logger  *slog.Logger
+	api           api.RequestService
+	timeout       time.Duration
+	logger        *slog.Logger
+	useLegacyHTTP bool
 }
 
-// queryRequest is the JSON body sent to the Query API.
+// queryRequest is the JSON body sent to the Query API v2.
 type queryRequest struct {
+	Statement  string         `json:"statement"`
+	Parameters map[string]any `json:"parameters,omitempty"`
+}
+
+// legacyQueryRequest is the JSON body sent to the legacy HTTP Transaction API.
+type legacyQueryRequest struct {
+	Statements []legacyStatement `json:"statements"`
+}
+
+type legacyStatement struct {
 	Statement  string         `json:"statement"`
 	Parameters map[string]any `json:"parameters,omitempty"`
 }
@@ -39,23 +50,32 @@ func (q *queryService) Execute(ctx context.Context, qry string, qryParams map[st
 	q.logger.DebugContext(ctx, "running query")
 
 	// Build request body.
-	bodyMarshalled, err := json.Marshal(queryRequest{
-		Statement:  qry,
-		Parameters: qryParams,
-	})
+	var reqPayload any
+	if q.useLegacyHTTP {
+		reqPayload = legacyQueryRequest{
+			Statements: []legacyStatement{{Statement: qry, Parameters: qryParams}},
+		}
+	} else {
+		reqPayload = queryRequest{Statement: qry, Parameters: qryParams}
+	}
+
+	bodyMarshalled, err := json.Marshal(reqPayload)
 	if err != nil {
 		return nil, fmt.Errorf("query: marshal request: %w", err)
 	}
 
-	body := string(bodyMarshalled)
-
-	resp, err := q.api.Post(ctx, body)
+	resp, err := q.api.Post(ctx, string(bodyMarshalled))
 	if err != nil {
 		q.logger.ErrorContext(ctx, "failed to query", slog.String("error", err.Error()))
 		return nil, err
 	}
 
-	result, err := decode.DecodeResponse(resp.Body)
+	var result *decode.Response
+	if q.useLegacyHTTP {
+		result, err = decode.DecodeLegacyResponse(resp.Body)
+	} else {
+		result, err = decode.DecodeResponse(resp.Body)
+	}
 	if err != nil {
 		q.logger.ErrorContext(ctx, "failed to decode response", slog.String("error", err.Error()))
 		return nil, err
