@@ -58,6 +58,7 @@ type Config struct {
 	DefaultHeaders  map[string]string // optional headers merged into every authenticated request
 	MaxResponseSize int               // The max size for a response.  Default is 10Mb
 	UseLegacyHTTP   bool              // target /db/{db}/tx/commit instead of /db/{db}/query/v2
+	ReadAccessMode  bool              // when true, sets accessMode header to "read"; defaults to false (write)
 }
 
 // apiRequestService is the concrete implementation of RequestService.
@@ -70,6 +71,7 @@ type apiRequestService struct {
 	userAgent      string
 	defaultHeaders map[string]string
 	useLegacyHTTP  bool
+	readAccessMode bool
 	logger         *slog.Logger
 }
 

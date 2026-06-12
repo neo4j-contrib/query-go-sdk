@@ -17,6 +17,7 @@ result, err := query.WithTransformer(client.Query, ctx,
 - [Authentication](#authentication)
 - [Configuration](#configuration)
 - [API Flavors](#api-flavors)
+- [Access Mode](#access-mode)
 - [Context and Timeouts](#context-and-timeouts)
 - [Executing Queries](#executing-queries)
 - [Transformers](#transformers)
@@ -120,6 +121,7 @@ client, err := query.NewClient(
 | `WithMaxResponseSize(n)` | 10MB | Maximum response body size in bytes; returns an error if exceeded |
 | `WithDefaultHeaders(map)` | — | Extra headers sent with every request; `Authorization`, `Content-Type`, `Accept`, and `User-Agent` are protected and cannot be overridden |
 | `WithAPIFlavor(f)` | `FlavorQueryV2` | Select which HTTP API endpoint to target; see [API Flavors](#api-flavors) |
+| `WithAccessMode(m)` | `AccessModeWrite` | Set the access mode header on every request; see [Access Mode](#access-mode) |
 
 ```go
 client, err := query.NewClient(
@@ -164,6 +166,35 @@ Everything else — transformers, records, error handling — works identically 
 #### Type mapping differences
 
 The legacy API returns row values as plain JSON without typed envelopes. Scalars (`string`, `int64`, `float64`, `bool`, `nil`) decode identically to `FlavorQueryV2`. However, graph entities are returned as plain `map[string]any` instead of `*query.Node` / `*query.Relationship`, because the `/tx/commit` endpoint does not include element IDs or labels in the row format. `rec.GetNode` and `rec.GetRelationship` will return `(nil, false)` for those values.
+
+---
+
+## Access Mode
+
+The `WithAccessMode` option controls the access mode header sent with every request. This hints to the server whether the operation requires write access or can be served by a read replica.
+
+| Constant | Header sent | Value |
+|---|---|---|
+| `AccessModeWrite` (default) | `accessMode` (Query API) / `Access-Mode` (Legacy HTTP API) | `write` / `WRITE` |
+| `AccessModeRead` | `accessMode` (Query API) / `Access-Mode` (Legacy HTTP API) | `read` / `READ` |
+
+```go
+// Read-only workload — may be routed to a read replica
+client, err := query.NewClient(
+    query.WithBasicAuth("neo4j", "password"),
+    query.WithBaseURL("http://localhost:7474"),
+    query.WithAccessMode(query.AccessModeRead),
+)
+```
+
+```go
+// Write workload — default, no explicit option needed
+client, err := query.NewClient(
+    query.WithBasicAuth("neo4j", "password"),
+    query.WithBaseURL("http://localhost:7474"),
+    query.WithAccessMode(query.AccessModeWrite),
+)
+```
 
 ---
 

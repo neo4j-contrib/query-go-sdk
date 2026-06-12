@@ -92,6 +92,20 @@ const (
 )
 
 // ============================================================================
+// Access mode
+// ============================================================================
+
+// AccessMode controls the accessMode header sent with every API request.
+type AccessMode int
+
+const (
+	// AccessModeWrite sets the accessMode header to "write". This is the default.
+	AccessModeWrite AccessMode = iota
+	// AccessModeRead sets the accessMode header to "read".
+	AccessModeRead
+)
+
+// ============================================================================
 // Client types
 // ============================================================================
 
@@ -119,6 +133,7 @@ type config struct {
 	maxResponseSize int               // optional max response size in bytes
 	clientVersion   string            // the version of this query client
 	flavor          APIFlavor         // which HTTP API endpoint to target
+	accessMode      AccessMode        // controls the accessMode header (read or write)
 }
 
 // Option is a functional option for configuring the AuraAPIClient.
@@ -315,6 +330,19 @@ func WithAPIFlavor(flavor APIFlavor) Option {
 	}
 }
 
+// WithAccessMode sets the accessMode header sent with every API request.
+// Use AccessModeRead for read-only workloads to allow the server to route
+// the request to a read replica. Defaults to AccessModeWrite.
+func WithAccessMode(mode AccessMode) Option {
+	return func(o *options) error {
+		if mode != AccessModeWrite && mode != AccessModeRead {
+			return fmt.Errorf("invalid access mode: %d", mode)
+		}
+		o.config.accessMode = mode
+		return nil
+	}
+}
+
 // Close drains idle HTTP connections held by the underlying transport. It
 // should be called via defer when the client is no longer needed to avoid
 // leaking file descriptors.
@@ -423,6 +451,7 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 		DefaultHeaders:  o.config.defaultHeaders,
 		MaxResponseSize: o.config.maxResponseSize,
 		UseLegacyHTTP:   o.config.flavor == FlavorLegacyHTTP,
+		ReadAccessMode:  o.config.accessMode == AccessModeRead,
 	}, o.logger)
 
 	clientLogger := o.logger.With(slog.String("component", "QueryAPIClient"))

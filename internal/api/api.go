@@ -93,6 +93,7 @@ func NewRequestService(cfg Config, logger *slog.Logger) RequestService {
 		defaultHeaders: cfg.DefaultHeaders,
 		authHeader:     cfg.AuthHeader,
 		useLegacyHTTP:  cfg.UseLegacyHTTP,
+		readAccessMode: cfg.ReadAccessMode,
 		logger:         logger,
 	}
 }
@@ -175,6 +176,19 @@ func (s *apiRequestService) doAuthenticatedRequest(ctx context.Context, method, 
 	}
 	headers["User-Agent"] = s.userAgent
 	headers["Authorization"] = s.authHeader.Authorize()
+	if s.useLegacyHTTP {
+		if s.readAccessMode {
+			headers["Access-Mode"] = "READ"
+		} else {
+			headers["Access-Mode"] = "WRITE"
+		}
+	} else {
+		if s.readAccessMode {
+			headers["accessMode"] = "read"
+		} else {
+			headers["accessMode"] = "write"
+		}
+	}
 
 	var fullURL string
 	if s.useLegacyHTTP {
