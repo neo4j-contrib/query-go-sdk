@@ -41,6 +41,15 @@ type legacyStatement struct {
 	Parameters map[string]any `json:"parameters,omitempty"`
 }
 
+// accessModeValue is the Query API v2 body-field spelling of readAccessMode:
+// "Read" or "Write", capitalized per https://neo4j.com/docs/query-api/current/routing/.
+func accessModeValue(readAccessMode bool) string {
+	if readAccessMode {
+		return "Read"
+	}
+	return "Write"
+}
+
 // ============================================================================
 // Service
 // ============================================================================
@@ -59,7 +68,7 @@ func (q *queryService) Execute(ctx context.Context, qry string, qryParams map[st
 			Statements: []legacyStatement{{Statement: qry, Parameters: qryParams}},
 		}
 	} else {
-		reqPayload = queryRequest{Statement: qry, Parameters: qryParams, AccessMode: fmt.Sprintf("%v", q.accessMode)}
+		reqPayload = queryRequest{Statement: qry, Parameters: qryParams, AccessMode: accessModeValue(q.accessMode)}
 	}
 
 	bodyMarshalled, err := json.Marshal(reqPayload)

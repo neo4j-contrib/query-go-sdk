@@ -95,6 +95,53 @@ func TestQueryService_Execute_NilParameters_NoParametersField(t *testing.T) {
 	}
 }
 
+func TestQueryService_Execute_AccessMode(t *testing.T) {
+	tests := []struct {
+		name           string
+		readAccessMode bool
+		want           string
+	}{
+		{name: "read", readAccessMode: true, want: `"accessMode":"Read"`},
+		{name: "write", readAccessMode: false, want: `"accessMode":"Write"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := validQueryResponseJSON([]string{}, nil)
+			mock := &mockRequestService{
+				response: &api.Response{StatusCode: 200, Body: body},
+			}
+			svc := createTestQueryService(mock)
+			svc.accessMode = tt.readAccessMode
+
+			_, err := svc.Execute(context.Background(), "RETURN 1", nil)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !strings.Contains(mock.lastBody, tt.want) {
+				t.Errorf("expected body to contain %s, got: %s", tt.want, mock.lastBody)
+			}
+		})
+	}
+}
+
+func TestQueryService_Execute_LegacyHTTP_OmitsAccessModeField(t *testing.T) {
+	body, _ := json.Marshal(map[string]any{"results": []any{}, "errors": []any{}})
+	mock := &mockRequestService{
+		response: &api.Response{StatusCode: 200, Body: body},
+	}
+	svc := createTestQueryService(mock)
+	svc.useLegacyHTTP = true
+	svc.accessMode = true
+
+	_, err := svc.Execute(context.Background(), "RETURN 1", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(mock.lastBody, "accessMode") {
+		t.Errorf("expected no 'accessMode' field for legacy flavor, got: %s", mock.lastBody)
+	}
+}
+
 func TestQueryService_Execute_APIError_401(t *testing.T) {
 	mock := &mockRequestService{
 		err: &api.Error{StatusCode: 401, Message: "Unauthorized"},
