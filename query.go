@@ -3,9 +3,10 @@ package query
 import (
 	"context"
 	"fmt"
-	"github.com/goccy/go-json"
 	"log/slog"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/neo4j-contrib/query-go-sdk/internal/api"
 	"github.com/neo4j-contrib/query-go-sdk/internal/decode"
@@ -20,12 +21,14 @@ type queryService struct {
 	timeout       time.Duration
 	logger        *slog.Logger
 	useLegacyHTTP bool
+	accessMode    bool
 }
 
 // queryRequest is the JSON body sent to the Query API v2.
 type queryRequest struct {
 	Statement  string         `json:"statement"`
 	Parameters map[string]any `json:"parameters,omitempty"`
+	AccessMode string         `json:"accessMode,omitempty"`
 }
 
 // legacyQueryRequest is the JSON body sent to the legacy HTTP Transaction API.
@@ -56,7 +59,7 @@ func (q *queryService) Execute(ctx context.Context, qry string, qryParams map[st
 			Statements: []legacyStatement{{Statement: qry, Parameters: qryParams}},
 		}
 	} else {
-		reqPayload = queryRequest{Statement: qry, Parameters: qryParams}
+		reqPayload = queryRequest{Statement: qry, Parameters: qryParams, AccessMode: fmt.Sprintf("%v", q.accessMode)}
 	}
 
 	bodyMarshalled, err := json.Marshal(reqPayload)

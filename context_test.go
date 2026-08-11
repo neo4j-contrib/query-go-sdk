@@ -208,8 +208,7 @@ func BenchmarkQueryService_Execute_Sequential(b *testing.B) {
 	}
 	svc := createTestQueryService(mock)
 
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		_, _ = svc.Execute(context.Background(), "RETURN 1", nil)
 	}
 }

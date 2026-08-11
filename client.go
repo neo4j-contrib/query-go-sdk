@@ -133,7 +133,7 @@ type config struct {
 	maxResponseSize int               // optional max response size in bytes
 	clientVersion   string            // the version of this query client
 	flavor          APIFlavor         // which HTTP API endpoint to target
-	accessMode      AccessMode        // controls the accessMode header (read or write)
+	readAccessMode  bool              // True = read, False = Write
 }
 
 // Option is a functional option for configuring the AuraAPIClient.
@@ -338,7 +338,11 @@ func WithAccessMode(mode AccessMode) Option {
 		if mode != AccessModeWrite && mode != AccessModeRead {
 			return fmt.Errorf("invalid access mode: %d", mode)
 		}
-		o.config.accessMode = mode
+		if mode == AccessModeRead {
+			o.config.readAccessMode = true
+		} else {
+			o.config.readAccessMode = false
+		}
 		return nil
 	}
 }
@@ -451,7 +455,7 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 		DefaultHeaders:  o.config.defaultHeaders,
 		MaxResponseSize: o.config.maxResponseSize,
 		UseLegacyHTTP:   o.config.flavor == FlavorLegacyHTTP,
-		ReadAccessMode:  o.config.accessMode == AccessModeRead,
+		ReadAccessMode:  o.config.readAccessMode == false,
 	}, o.logger)
 
 	clientLogger := o.logger.With(slog.String("component", "QueryAPIClient"))
@@ -466,6 +470,7 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 		timeout:       o.config.apiTimeout,
 		logger:        clientLogger.With(slog.String("service", "queryService")),
 		useLegacyHTTP: o.config.flavor == FlavorLegacyHTTP,
+		accessMode:    o.config.readAccessMode,
 	}
 
 	service.logger.Info("Query API client initialized successfully",
