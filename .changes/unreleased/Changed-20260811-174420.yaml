@@ -1,0 +1,3 @@
+kind: Changed
+body: WithAccessMode now defaults to AccessModeUnset instead of AccessModeWrite; when unset, no accessMode is sent and the server-side router forwards writes to the leader and reads to any member
+time: 2026-08-11T17:44:20.529297+01:00

@@ -121,7 +121,7 @@ client, err := query.NewClient(
 | `WithMaxResponseSize(n)` | 10MB | Maximum response body size in bytes; returns an error if exceeded |
 | `WithDefaultHeaders(map)` | — | Extra headers sent with every request; `Authorization`, `Content-Type`, `Accept`, and `User-Agent` are protected and cannot be overridden |
 | `WithAPIFlavor(f)` | `FlavorQueryV2` | Select which HTTP API endpoint to target; see [API Flavors](#api-flavors) |
-| `WithAccessMode(m)` | `AccessModeWrite` | Set the access mode header on every request; see [Access Mode](#access-mode) |
+| `WithAccessMode(m)` | `AccessModeUnset` | Set the access mode sent with every request; see [Access Mode](#access-mode) |
 
 ```go
 client, err := query.NewClient(
@@ -171,13 +171,15 @@ The legacy API returns row values as plain JSON without typed envelopes. Scalars
 
 ## Access Mode
 
-The `WithAccessMode` option controls the access mode  sent with every request. This hints to the server whether the operation requires write access or can be served by a read replica. With Neo4j Clusters, this option can be used to redirect queries to followers and mutations to the leader as the latter is the only cluster member who can make changes to the graph.  This allows for the application to make load balancing decisions to avoid overwhelming the leader.
+The `WithAccessMode` option controls the access mode sent with every request. This hints to the server whether the operation requires write access or can be served by a read replica. With Neo4j Clusters, this option can be used to redirect queries to followers and mutations to the leader as the latter is the only cluster member who can make changes to the graph. This allows for the application to make load balancing decisions to avoid overwhelming the leader.
 
 | Constant 
 |---
-| `AccessModeWrite` (default) 
+| `AccessModeUnset` (default) 
 | `AccessModeRead` 
+| `AccessModeWrite` 
 
+By default, no access mode is sent at all. In a cluster, this means server-side routing decides where to send the request: any cluster member can handle it if it turns out to be a read, but only the leader can handle a write, so server-side routing forwards the request to the leader whenever the operation turns out to require a write.
 
 ```go
 // Read-only workload — may be routed to a read replica
@@ -189,7 +191,7 @@ client, err := query.NewClient(
 ```
 
 ```go
-// Write workload — default, no explicit option needed
+// Write workload — explicitly forces leader routing
 client, err := query.NewClient(
     query.WithBasicAuth("neo4j", "password"),
     query.WithBaseURL("http://localhost:7474"),

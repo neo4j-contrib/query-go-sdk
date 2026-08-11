@@ -21,7 +21,7 @@ type queryService struct {
 	timeout       time.Duration
 	logger        *slog.Logger
 	useLegacyHTTP bool
-	accessMode    bool
+	accessMode    AccessMode
 }
 
 // queryRequest is the JSON body sent to the Query API v2.
@@ -41,13 +41,19 @@ type legacyStatement struct {
 	Parameters map[string]any `json:"parameters,omitempty"`
 }
 
-// accessModeValue is the Query API v2 body-field spelling of readAccessMode:
+// accessModeValue is the Query API v2 body-field spelling of AccessMode:
 // "Read" or "Write", capitalized per https://neo4j.com/docs/query-api/current/routing/.
-func accessModeValue(readAccessMode bool) string {
-	if readAccessMode {
+// AccessModeUnset returns "", which the queryRequest's omitempty tag drops
+// from the body entirely.
+func accessModeValue(mode AccessMode) string {
+	switch mode {
+	case AccessModeRead:
 		return "Read"
+	case AccessModeWrite:
+		return "Write"
+	default:
+		return ""
 	}
-	return "Write"
 }
 
 // ============================================================================

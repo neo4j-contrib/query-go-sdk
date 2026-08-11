@@ -180,6 +180,64 @@ func TestAPIService_Headers_Accept(t *testing.T) {
 	}
 }
 
+func TestAPIService_Headers_AccessMode_Unset_NoHeaderSent(t *testing.T) {
+	mock := testutil.NewMockHTTPService()
+	mock.WithResponse(http.StatusOK, `{"results":[],"errors":[]}`)
+	svc := newTestService(mock)
+	svc.useLegacyHTTP = true
+
+	_, err := svc.Post(context.Background(), `{}`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if v, ok := mock.LastHeaders["Access-Mode"]; ok {
+		t.Errorf("expected no Access-Mode header for unset access mode, got '%s'", v)
+	}
+}
+
+func TestAPIService_Headers_AccessMode_Legacy(t *testing.T) {
+	tests := []struct {
+		name       string
+		accessMode AccessMode
+		want       string
+	}{
+		{name: "read", accessMode: AccessModeRead, want: "READ"},
+		{name: "write", accessMode: AccessModeWrite, want: "WRITE"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := testutil.NewMockHTTPService()
+			mock.WithResponse(http.StatusOK, `{"results":[],"errors":[]}`)
+			svc := newTestService(mock)
+			svc.useLegacyHTTP = true
+			svc.accessMode = tt.accessMode
+
+			_, err := svc.Post(context.Background(), `{}`)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if mock.LastHeaders["Access-Mode"] != tt.want {
+				t.Errorf("expected Access-Mode '%s', got '%s'", tt.want, mock.LastHeaders["Access-Mode"])
+			}
+		})
+	}
+}
+
+func TestAPIService_Headers_AccessMode_QueryV2_NeverSendsHeader(t *testing.T) {
+	mock := testutil.NewMockHTTPService()
+	mock.WithResponse(http.StatusOK, `{"data":{"fields":[],"values":[]},"bookmarks":[]}`)
+	svc := newTestService(mock)
+	svc.accessMode = AccessModeRead
+
+	_, err := svc.Post(context.Background(), `{}`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if v, ok := mock.LastHeaders["Access-Mode"]; ok {
+		t.Errorf("expected no Access-Mode header for QueryV2 flavor, got '%s'", v)
+	}
+}
+
 func TestAPIService_Headers_UserAgent(t *testing.T) {
 	mock := testutil.NewMockHTTPService()
 	mock.WithResponse(http.StatusOK, `{"data":{"fields":[],"values":[]},"bookmarks":[]}`)
