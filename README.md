@@ -171,12 +171,13 @@ The legacy API returns row values as plain JSON without typed envelopes. Scalars
 
 ## Access Mode
 
-The `WithAccessMode` option controls the access mode header sent with every request. This hints to the server whether the operation requires write access or can be served by a read replica.
+The `WithAccessMode` option controls the access mode  sent with every request. This hints to the server whether the operation requires write access or can be served by a read replica. With Neo4j Clusters, this option can be used to redirect queries to followers and mutations to the leader as the latter is the only cluster member who can make changes to the graph.  This allows for the application to make load balancing decisions to avoid overwhelming the leader.
 
-| Constant | Header sent | Value |
-|---|---|---|
-| `AccessModeWrite` (default) | `accessMode` (Query API) / `Access-Mode` (Legacy HTTP API) | `write` / `WRITE` |
-| `AccessModeRead` | `accessMode` (Query API) / `Access-Mode` (Legacy HTTP API) | `read` / `READ` |
+| Constant 
+|---
+| `AccessModeWrite` (default) 
+| `AccessModeRead` 
+
 
 ```go
 // Read-only workload — may be routed to a read replica

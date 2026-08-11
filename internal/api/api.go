@@ -176,17 +176,17 @@ func (s *apiRequestService) doAuthenticatedRequest(ctx context.Context, method, 
 	}
 	headers["User-Agent"] = s.userAgent
 	headers["Authorization"] = s.authHeader.Authorize()
+
+	// Both have the ability to tell Neo4j Clusters
+	// to direct this query to a follower ( read only ) or a leader ( both read / write )
+	// Legacy does this with a header,  Access-Mode, Query V2 does it in the request body accessMode
+	// We set the header when Legacy mode is used.
+	// Query V2 is set in the body in query.go
 	if s.useLegacyHTTP {
 		if s.readAccessMode {
 			headers["Access-Mode"] = "READ"
 		} else {
 			headers["Access-Mode"] = "WRITE"
-		}
-	} else {
-		if s.readAccessMode {
-			headers["accessMode"] = "read"
-		} else {
-			headers["accessMode"] = "write"
 		}
 	}
 
