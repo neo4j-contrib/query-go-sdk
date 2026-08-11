@@ -455,7 +455,7 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 		DefaultHeaders:  o.config.defaultHeaders,
 		MaxResponseSize: o.config.maxResponseSize,
 		UseLegacyHTTP:   o.config.flavor == FlavorLegacyHTTP,
-		ReadAccessMode:  o.config.readAccessMode == false,
+		ReadAccessMode:  !o.config.readAccessMode, // False results in access mode being set to Write which is the default
 	}, o.logger)
 
 	clientLogger := o.logger.With(slog.String("component", "QueryAPIClient"))
