@@ -97,12 +97,14 @@ func TestQueryService_Execute_NilParameters_NoParametersField(t *testing.T) {
 
 func TestQueryService_Execute_AccessMode(t *testing.T) {
 	tests := []struct {
-		name           string
-		readAccessMode bool
-		want           string
+		name       string
+		accessMode AccessMode
+		want       string
+		wantAbsent bool
 	}{
-		{name: "read", readAccessMode: true, want: `"accessMode":"Read"`},
-		{name: "write", readAccessMode: false, want: `"accessMode":"Write"`},
+		{name: "read", accessMode: AccessModeRead, want: `"accessMode":"Read"`},
+		{name: "write", accessMode: AccessModeWrite, want: `"accessMode":"Write"`},
+		{name: "unset", accessMode: AccessModeUnset, wantAbsent: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -111,11 +113,17 @@ func TestQueryService_Execute_AccessMode(t *testing.T) {
 				response: &api.Response{StatusCode: 200, Body: body},
 			}
 			svc := createTestQueryService(mock)
-			svc.accessMode = tt.readAccessMode
+			svc.accessMode = tt.accessMode
 
 			_, err := svc.Execute(context.Background(), "RETURN 1", nil)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantAbsent {
+				if strings.Contains(mock.lastBody, "accessMode") {
+					t.Errorf("expected no 'accessMode' field for unset access mode, got: %s", mock.lastBody)
+				}
+				return
 			}
 			if !strings.Contains(mock.lastBody, tt.want) {
 				t.Errorf("expected body to contain %s, got: %s", tt.want, mock.lastBody)
@@ -131,7 +139,7 @@ func TestQueryService_Execute_LegacyHTTP_OmitsAccessModeField(t *testing.T) {
 	}
 	svc := createTestQueryService(mock)
 	svc.useLegacyHTTP = true
-	svc.accessMode = true
+	svc.accessMode = AccessModeRead
 
 	_, err := svc.Execute(context.Background(), "RETURN 1", nil)
 	if err != nil {

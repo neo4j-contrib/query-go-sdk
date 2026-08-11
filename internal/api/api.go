@@ -93,7 +93,7 @@ func NewRequestService(cfg Config, logger *slog.Logger) RequestService {
 		defaultHeaders: cfg.DefaultHeaders,
 		authHeader:     cfg.AuthHeader,
 		useLegacyHTTP:  cfg.UseLegacyHTTP,
-		readAccessMode: cfg.ReadAccessMode,
+		accessMode:     cfg.AccessMode,
 		logger:         logger,
 	}
 }
@@ -182,10 +182,13 @@ func (s *apiRequestService) doAuthenticatedRequest(ctx context.Context, method, 
 	// Legacy does this with a header,  Access-Mode, Query V2 does it in the request body accessMode
 	// We set the header when Legacy mode is used.
 	// Query V2 is set in the body in query.go
+	// When accessMode is unset, no header is sent and the server-side router
+	// forwards the request to whichever cluster member can handle it.
 	if s.useLegacyHTTP {
-		if s.readAccessMode {
+		switch s.accessMode {
+		case AccessModeRead:
 			headers["Access-Mode"] = "READ"
-		} else {
+		case AccessModeWrite:
 			headers["Access-Mode"] = "WRITE"
 		}
 	}

@@ -45,6 +45,19 @@ type StaticCredentials struct {
 	Token string
 }
 
+// AccessMode controls the Access-Mode header sent with every legacy-flavor
+// API request.
+type AccessMode int
+
+const (
+	// AccessModeUnset sends no Access-Mode header at all.
+	AccessModeUnset AccessMode = iota
+	// AccessModeRead sets the Access-Mode header to "READ".
+	AccessModeRead
+	// AccessModeWrite sets the Access-Mode header to "WRITE".
+	AccessModeWrite
+)
+
 // Config holds configuration for the API service.
 type Config struct {
 	AuthHeader      Credentials
@@ -58,7 +71,7 @@ type Config struct {
 	DefaultHeaders  map[string]string // optional headers merged into every authenticated request
 	MaxResponseSize int               // The max size for a response.  Default is 10Mb
 	UseLegacyHTTP   bool              // target /db/{db}/tx/commit instead of /db/{db}/query/v2
-	ReadAccessMode  bool              // when true, sets accessMode header to "read"; defaults to false (write)
+	AccessMode      AccessMode        // Access-Mode header to send for legacy-flavor requests; unset by default
 }
 
 // apiRequestService is the concrete implementation of RequestService.
@@ -71,7 +84,7 @@ type apiRequestService struct {
 	userAgent      string
 	defaultHeaders map[string]string
 	useLegacyHTTP  bool
-	readAccessMode bool
+	accessMode     AccessMode
 	logger         *slog.Logger
 }
 

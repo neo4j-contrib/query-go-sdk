@@ -95,14 +95,18 @@ const (
 // Access mode
 // ============================================================================
 
-// AccessMode controls the accessMode header sent with every API request.
+// AccessMode controls the accessMode sent with every API request.
 type AccessMode int
 
 const (
-	// AccessModeWrite sets the accessMode header to "write". This is the default.
-	AccessModeWrite AccessMode = iota
-	// AccessModeRead sets the accessMode header to "read".
+	// AccessModeUnset sends no accessMode at all. This is the default: the
+	// server-side router forwards the request to whichever cluster member
+	// can handle it — any member for a read, the leader for a write.
+	AccessModeUnset AccessMode = iota
+	// AccessModeRead sets the accessMode to "read".
 	AccessModeRead
+	// AccessModeWrite sets the accessMode to "write".
+	AccessModeWrite
 )
 
 // ============================================================================
@@ -133,7 +137,7 @@ type config struct {
 	maxResponseSize int               // optional max response size in bytes
 	clientVersion   string            // the version of this query client
 	flavor          APIFlavor         // which HTTP API endpoint to target
-	readAccessMode  bool              // True = read, False = Write
+	accessMode      AccessMode        // which accessMode to send with every request; unset by default
 }
 
 // Option is a functional option for configuring the AuraAPIClient.
@@ -330,19 +334,18 @@ func WithAPIFlavor(flavor APIFlavor) Option {
 	}
 }
 
-// WithAccessMode sets the accessMode header sent with every API request.
-// Use AccessModeRead for read-only workloads to allow the server to route
-// the request to a read replica. Defaults to AccessModeWrite.
+// WithAccessMode sets the accessMode sent with every API request. Use
+// AccessModeRead for read-only workloads to allow the server to route the
+// request to a read replica, or AccessModeWrite to force leader routing.
+// Defaults to AccessModeUnset, which sends no accessMode at all and lets the
+// server-side router forward the request to whichever cluster member can
+// handle it.
 func WithAccessMode(mode AccessMode) Option {
 	return func(o *options) error {
-		if mode != AccessModeWrite && mode != AccessModeRead {
+		if mode != AccessModeUnset && mode != AccessModeWrite && mode != AccessModeRead {
 			return fmt.Errorf("invalid access mode: %d", mode)
 		}
-		if mode == AccessModeRead {
-			o.config.readAccessMode = true
-		} else {
-			o.config.readAccessMode = false
-		}
+		o.config.accessMode = mode
 		return nil
 	}
 }
@@ -443,6 +446,16 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 		slog.Duration("apiTimeout", o.config.apiTimeout),
 	)
 
+	var apiAccessMode api.AccessMode
+	switch o.config.accessMode {
+	case AccessModeRead:
+		apiAccessMode = api.AccessModeRead
+	case AccessModeWrite:
+		apiAccessMode = api.AccessModeWrite
+	default:
+		apiAccessMode = api.AccessModeUnset
+	}
+
 	apiSvc := api.NewRequestService(api.Config{
 		AuthHeader:      o.config.authHeader,
 		BaseURL:         o.config.baseURL,
@@ -455,7 +468,7 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 		DefaultHeaders:  o.config.defaultHeaders,
 		MaxResponseSize: o.config.maxResponseSize,
 		UseLegacyHTTP:   o.config.flavor == FlavorLegacyHTTP,
-		ReadAccessMode:  !o.config.readAccessMode, // False results in access mode being set to Write which is the default
+		AccessMode:      apiAccessMode,
 	}, o.logger)
 
 	clientLogger := o.logger.With(slog.String("component", "QueryAPIClient"))
@@ -470,7 +483,7 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 		timeout:       o.config.apiTimeout,
 		logger:        clientLogger.With(slog.String("service", "queryService")),
 		useLegacyHTTP: o.config.flavor == FlavorLegacyHTTP,
-		accessMode:    o.config.readAccessMode,
+		accessMode:    o.config.accessMode,
 	}
 
 	service.logger.Info("Query API client initialized successfully",
