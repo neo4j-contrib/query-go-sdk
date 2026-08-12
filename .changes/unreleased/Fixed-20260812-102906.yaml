@@ -1,0 +1,3 @@
+kind: Fixed
+body: Send the typed JSON Accept/Content-Type header as the documented versioned media type application/vnd.neo4j.query.v1.1 instead of the unversioned application/vnd.neo4j.query
+time: 2026-08-12T10:29:06.570585+01:00

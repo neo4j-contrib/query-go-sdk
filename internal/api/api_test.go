@@ -175,8 +175,8 @@ func TestAPIService_Headers_Accept(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if mock.LastHeaders["Accept"] != "application/vnd.neo4j.query" {
-		t.Errorf("expected Accept 'application/vnd.neo4j.query', got '%s'", mock.LastHeaders["Accept"])
+	if mock.LastHeaders["Accept"] != "application/vnd.neo4j.query.v1.1" {
+		t.Errorf("expected Accept 'application/vnd.neo4j.query.v1.1', got '%s'", mock.LastHeaders["Accept"])
 	}
 }
 
