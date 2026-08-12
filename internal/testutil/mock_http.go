@@ -6,6 +6,8 @@ package testutil
 
 import (
 	"context"
+	"io"
+	"strings"
 
 	"github.com/neo4j-contrib/query-go-sdk/internal/httpclient"
 )
@@ -29,6 +31,10 @@ type MockHTTPService struct {
 	PatchError     error
 	DeleteResponse *httpclient.HTTPResponse
 	DeleteError    error
+
+	// PostStream-specific response (takes precedence over Response/Error).
+	PostStreamResponse *httpclient.StreamResponse
+	PostStreamError    error
 
 	// Call recording for assertions.
 	LastMethod  string
@@ -99,6 +105,12 @@ func (m *MockHTTPService) Delete(_ context.Context, url string, headers map[stri
 	return m.Response, m.Error
 }
 
+// PostStream implements httpclient.HTTPService.
+func (m *MockHTTPService) PostStream(_ context.Context, url string, headers map[string]string, body string) (*httpclient.StreamResponse, error) {
+	m.record("POSTSTREAM", url, headers, body)
+	return m.PostStreamResponse, m.PostStreamError
+}
+
 // Close implements httpclient.HTTPService. It is a no-op in the mock.
 func (m *MockHTTPService) Close() {}
 
@@ -130,6 +142,8 @@ func (m *MockHTTPService) Reset() {
 	m.PatchError = nil
 	m.DeleteResponse = nil
 	m.DeleteError = nil
+	m.PostStreamResponse = nil
+	m.PostStreamError = nil
 	m.LastMethod = ""
 	m.LastURL = ""
 	m.LastHeaders = nil
@@ -167,6 +181,16 @@ func (m *MockHTTPService) WithPostResponse(statusCode int, body string) *MockHTT
 	m.PostResponse = &httpclient.HTTPResponse{
 		StatusCode: statusCode,
 		Body:       []byte(body),
+	}
+	return m
+}
+
+// WithPostStreamResponse configures a response returned only for PostStream
+// requests. body is served as the response's io.ReadCloser.
+func (m *MockHTTPService) WithPostStreamResponse(statusCode int, body string) *MockHTTPService {
+	m.PostStreamResponse = &httpclient.StreamResponse{
+		StatusCode: statusCode,
+		Body:       io.NopCloser(strings.NewReader(body)),
 	}
 	return m
 }

@@ -12,6 +12,11 @@ type QueryService interface {
 	// Execute runs a Cypher statement and returns the raw decoded response.
 	// Use WithTransformer to map the result to a typed value.
 	Execute(ctx context.Context, qry string, qryParams map[string]any) (*Response, error)
+	// ExecuteStream runs a Cypher statement and returns a StreamResult that
+	// decodes records incrementally as they arrive over the wire, instead of
+	// buffering the entire response. Requires the client to be constructed
+	// with WithStreamingSupport(true).
+	ExecuteStream(ctx context.Context, qry string, qryParams map[string]any) (*StreamResult, error)
 }
 
 // Compile-time interface compliance checks

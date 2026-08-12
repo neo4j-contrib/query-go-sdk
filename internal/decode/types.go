@@ -48,6 +48,46 @@ func (r *Response) HasWarnings() bool {
 }
 
 // ============================================================================
+// Streaming response types
+// ============================================================================
+
+// StreamSummary is the execution metadata delivered in the Summary event that
+// terminates a successful streamed response. QueryPlan is populated for
+// EXPLAIN statements, ProfiledQueryPlan for PROFILE statements — unlike the
+// buffered Response type, the streaming Summary event can carry either or
+// both.
+type StreamSummary struct {
+	Bookmarks            []string
+	Notifications        []Notification
+	QueryPlan            *PlanOperator
+	ProfiledQueryPlan    *PlanOperator
+	QueryType            string
+	ResultAvailableAfter time.Duration
+	ResultConsumedAfter  time.Duration
+}
+
+// Warnings returns only the notifications with severity "WARNING".
+func (s *StreamSummary) Warnings() []Notification {
+	out := make([]Notification, 0, len(s.Notifications))
+	for _, n := range s.Notifications {
+		if n.Severity == SeverityWarning {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// HasWarnings returns true if any WARNING severity notifications are present.
+func (s *StreamSummary) HasWarnings() bool {
+	for _, n := range s.Notifications {
+		if n.Severity == SeverityWarning {
+			return true
+		}
+	}
+	return false
+}
+
+// ============================================================================
 // Notification types
 // ============================================================================
 

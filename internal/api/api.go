@@ -5,6 +5,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -16,6 +17,22 @@ import (
 	"github.com/neo4j-contrib/query-go-sdk/internal/httpclient"
 	"github.com/neo4j-contrib/query-go-sdk/internal/utils"
 )
+
+// Media types for the Query API's Accept/Content-Type headers. Typed JSON is
+// requested with a version-qualified media type (bare "application/vnd.neo4j.query"
+// is not a documented value — see https://neo4j.com/docs/query-api/current/headers/).
+// Streaming is requested by appending "+jsonl" to the typed JSON media type
+// (https://neo4j.com/docs/query-api/current/streaming/).
+const (
+	mediaTypeTypedJSON       = "application/vnd.neo4j.query.v1.1"
+	mediaTypeTypedJSONStream = mediaTypeTypedJSON + "+jsonl"
+	mediaTypeLegacyJSON      = "application/json"
+)
+
+// maxStreamErrorBodySize caps how much of a non-2xx streaming response body
+// is read to build the error message. Error payloads are small JSON objects;
+// this just guards against a misbehaving server sending something huge.
+const maxStreamErrorBodySize = 64 * 1024
 
 func (b *BasicCredentials) Authorize() string {
 	return "Basic " + utils.Base64Encode(b.Username, b.Password)
@@ -155,6 +172,59 @@ func (s *apiRequestService) Post(ctx context.Context, body string) (*Response, e
 	return s.doAuthenticatedRequest(ctx, http.MethodPost, body)
 }
 
+// PostStream performs an authenticated POST request requesting the Query
+// API's streaming (JSON Lines) response format. It is only meaningful against
+// the Query API v2 endpoint — callers are responsible for not invoking it
+// when the client is configured for the legacy HTTP Transaction API flavor.
+func (s *apiRequestService) PostStream(ctx context.Context, body string) (*StreamResponse, error) {
+	if err := ctx.Err(); err != nil {
+		s.logger.ErrorContext(ctx, "context already cancelled before stream request", slog.String("error", err.Error()))
+		return nil, err
+	}
+
+	headers := make(map[string]string, len(s.defaultHeaders)+3)
+	maps.Copy(headers, s.defaultHeaders)
+	headers["Content-Type"] = "application/json"
+	headers["Accept"] = mediaTypeTypedJSONStream
+	headers["User-Agent"] = s.userAgent
+	headers["Authorization"] = s.authHeader.Authorize()
+
+	fullURL := fmt.Sprintf("%s/db/%s/query/v2", s.baseURL, url.PathEscape(s.database))
+
+	s.logger.DebugContext(ctx, "making authenticated streaming API request",
+		slog.String("URL", fullURL),
+		slog.Int("body_bytes", len(body)),
+	)
+
+	resp, err := s.httpClient.PostStream(ctx, fullURL, headers, body)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "streaming HTTP request failed",
+			slog.String("endpoint", fullURL),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer func() { _ = resp.Body.Close() }()
+		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxStreamErrorBodySize))
+		apiErr := parseError(errBody, resp.StatusCode)
+		s.logger.DebugContext(ctx, "API returned error",
+			slog.String("endpoint", fullURL),
+			slog.Int("statusCode", resp.StatusCode),
+			slog.String("message", apiErr.Message),
+		)
+		return nil, apiErr
+	}
+
+	s.logger.DebugContext(ctx, "streaming API request accepted",
+		slog.String("endpoint", fullURL),
+		slog.Int("statusCode", resp.StatusCode),
+	)
+
+	return &StreamResponse{StatusCode: resp.StatusCode, Body: resp.Body}, nil
+}
+
 // doAuthenticatedRequest handles the common pattern of making an authenticated
 // API request. It trusts the deadline already set on ctx by the calling service
 // layer — no additional timeout is applied here.
@@ -170,9 +240,9 @@ func (s *apiRequestService) doAuthenticatedRequest(ctx context.Context, method, 
 	maps.Copy(headers, s.defaultHeaders)
 	headers["Content-Type"] = "application/json"
 	if s.useLegacyHTTP {
-		headers["Accept"] = "application/json"
+		headers["Accept"] = mediaTypeLegacyJSON
 	} else {
-		headers["Accept"] = "application/vnd.neo4j.query"
+		headers["Accept"] = mediaTypeTypedJSON
 	}
 	headers["User-Agent"] = s.userAgent
 	headers["Authorization"] = s.authHeader.Authorize()

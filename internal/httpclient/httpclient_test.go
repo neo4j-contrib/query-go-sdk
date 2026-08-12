@@ -152,6 +152,96 @@ func TestPost_EmptyBody(t *testing.T) {
 	}
 }
 
+// ─── PostStream ───────────────────────────────────────────────────────────────
+
+func TestPostStream_BodyForwarded(t *testing.T) {
+	const expectedBody = `{"statement":"RETURN 1"}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		body, _ := io.ReadAll(r.Body)
+		if string(body) != expectedBody {
+			t.Errorf("expected body '%s', got '%s'", expectedBody, body)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"$event":"Header","_body":{"fields":[]}}` + "\n"))
+	}))
+	defer srv.Close()
+
+	svc := newTestService()
+	resp, err := svc.PostStream(context.Background(), srv.URL, nil, expectedBody)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	got, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("unexpected error reading body: %v", err)
+	}
+	if string(got) != `{"$event":"Header","_body":{"fields":[]}}`+"\n" {
+		t.Errorf("unexpected body: %s", got)
+	}
+}
+
+func TestPostStream_BodyIsLiveNotBuffered(t *testing.T) {
+	// The body must be readable incrementally, i.e. PostStream itself must not
+	// have consumed it — proven here by reading it after the handler has
+	// already returned and the response headers have been flushed.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		flusher, _ := w.(http.Flusher)
+		_, _ = w.Write([]byte("line1\n"))
+		if flusher != nil {
+			flusher.Flush()
+		}
+		_, _ = w.Write([]byte("line2\n"))
+	}))
+	defer srv.Close()
+
+	svc := newTestService()
+	resp, err := svc.PostStream(context.Background(), srv.URL, nil, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	got, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("unexpected error reading body: %v", err)
+	}
+	if string(got) != "line1\nline2\n" {
+		t.Errorf("unexpected body: %q", got)
+	}
+}
+
+func TestPostStream_ExceedsMaxResponseSize(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(strings.Repeat("a", 100)))
+	}))
+	defer srv.Close()
+
+	svc := NewHTTPService(5*time.Second, 0, 10, testLogger(), nil) // 10-byte cap
+	resp, err := svc.PostStream(context.Background(), srv.URL, nil, "")
+	if err != nil {
+		t.Fatalf("unexpected error from PostStream itself: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	_, err = io.ReadAll(resp.Body)
+	if err == nil {
+		t.Fatal("expected an error reading past the size cap, got nil")
+	}
+	if !strings.Contains(err.Error(), "exceeds maximum size") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
 // ─── PUT / PATCH / DELETE ─────────────────────────────────────────────────────
 
 func TestPut_MethodForwarded(t *testing.T) {

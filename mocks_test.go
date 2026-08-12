@@ -2,8 +2,10 @@ package query
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,10 +26,12 @@ func testLogger() *slog.Logger {
 // mockRequestService is a basic mock of api.RequestService.
 // It records the last call method and body but does not inspect the context.
 type mockRequestService struct {
-	response   *api.Response
-	err        error
-	lastMethod string
-	lastBody   string
+	response       *api.Response
+	err            error
+	streamResponse *api.StreamResponse
+	streamErr      error
+	lastMethod     string
+	lastBody       string
 }
 
 // mockRequestServiceWithDelay is a mock that can simulate slow responses and
@@ -62,11 +66,26 @@ func (m *mockRequestService) Post(_ context.Context, body string) (*api.Response
 	return m.response, m.err
 }
 
+func (m *mockRequestService) PostStream(_ context.Context, body string) (*api.StreamResponse, error) {
+	m.lastMethod = "POSTSTREAM"
+	m.lastBody = body
+	return m.streamResponse, m.streamErr
+}
+
 func (m *mockRequestService) Discover(_ context.Context) (*api.DiscoveryResponse, error) {
 	return &api.DiscoveryResponse{Neo4jVersion: "2026.04.0"}, nil
 }
 
 func (m *mockRequestService) Close() {}
+
+// newStreamResponse builds an *api.StreamResponse whose body is the given
+// NDJSON lines, for use with mockRequestService.streamResponse in tests.
+func newStreamResponse(lines ...string) *api.StreamResponse {
+	return &api.StreamResponse{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(strings.Join(lines, "\n") + "\n")),
+	}
+}
 
 // ============================================================================
 // mockRequestServiceWithDelay — respects context cancellation, simulates slow APIs
@@ -95,6 +114,25 @@ func (m *mockRequestServiceWithDelay) executeWithDelay(ctx context.Context) (*ap
 	return m.response, m.err
 }
 
+func (m *mockRequestServiceWithDelay) PostStream(ctx context.Context, body string) (*api.StreamResponse, error) {
+	m.mu.Lock()
+	m.lastMethod = "POSTSTREAM"
+	m.lastBody = body
+	m.callCount++
+	m.mu.Unlock()
+	if m.delay > 0 {
+		select {
+		case <-time.After(m.delay):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	return nil, m.err
+}
+
 func (m *mockRequestServiceWithDelay) Discover(ctx context.Context) (*api.DiscoveryResponse, error) {
 	return &api.DiscoveryResponse{Neo4jVersion: "2026.04.0"}, nil
 }
@@ -114,6 +152,17 @@ func (m *contextCheckMock) Post(ctx context.Context, _ string) (*api.Response, e
 		return nil, ctx.Err()
 	}
 	return m.response, m.err
+}
+
+func (m *contextCheckMock) PostStream(ctx context.Context, _ string) (*api.StreamResponse, error) {
+	m.callCount++
+	if m.OnPost != nil {
+		m.OnPost(ctx)
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	return nil, m.err
 }
 
 func (m *contextCheckMock) Discover(_ context.Context) (*api.DiscoveryResponse, error) {

@@ -138,6 +138,7 @@ type config struct {
 	clientVersion   string            // the version of this query client
 	flavor          APIFlavor         // which HTTP API endpoint to target
 	accessMode      AccessMode        // which accessMode to send with every request; unset by default
+	streaming       bool              // whether ExecuteStream is enabled
 }
 
 // Option is a functional option for configuring the AuraAPIClient.
@@ -350,6 +351,21 @@ func WithAccessMode(mode AccessMode) Option {
 	}
 }
 
+// WithStreamingSupport enables the Query API's streaming (JSON Lines)
+// response format, which unlocks QueryService.ExecuteStream for incremental
+// record consumption instead of buffering the entire response. Execute is
+// unaffected either way. Defaults to disabled.
+//
+// Not supported together with WithAPIFlavor(FlavorLegacyHTTP): the legacy
+// Cypher HTTP Transaction API does not support streaming. NewClient returns
+// an error if both are set.
+func WithStreamingSupport(enabled bool) Option {
+	return func(o *options) error {
+		o.config.streaming = enabled
+		return nil
+	}
+}
+
 // Close drains idle HTTP connections held by the underlying transport. It
 // should be called via defer when the client is no longer needed to avoid
 // leaking file descriptors.
@@ -434,6 +450,11 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 		return nil, errors.New("API timeout must be greater than zero")
 	}
 
+	if o.config.streaming && o.config.flavor == FlavorLegacyHTTP {
+		o.logger.Error("validation failed", slog.String("reason", "WithStreamingSupport is not supported with FlavorLegacyHTTP"))
+		return nil, errors.New("WithStreamingSupport is not supported with FlavorLegacyHTTP")
+	}
+
 	// User-Agent is required for usage analysis. WithUserAgent can override the default.
 	if o.config.userAgent == "" {
 		o.logger.Error("validation failed", slog.String("reason", "User agent cannot be empty"))
@@ -479,11 +500,13 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 	}
 
 	service.Query = &queryService{
-		api:           apiSvc,
-		timeout:       o.config.apiTimeout,
-		logger:        clientLogger.With(slog.String("service", "queryService")),
-		useLegacyHTTP: o.config.flavor == FlavorLegacyHTTP,
-		accessMode:    o.config.accessMode,
+		api:              apiSvc,
+		timeout:          o.config.apiTimeout,
+		logger:           clientLogger.With(slog.String("service", "queryService")),
+		useLegacyHTTP:    o.config.flavor == FlavorLegacyHTTP,
+		accessMode:       o.config.accessMode,
+		streamingEnabled: o.config.streaming,
+		maxResponseSize:  o.config.maxResponseSize,
 	}
 
 	service.logger.Info("Query API client initialized successfully",

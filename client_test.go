@@ -85,6 +85,41 @@ func TestWithDatabase_Empty_Error(t *testing.T) {
 	}
 }
 
+func TestWithStreamingSupport_Enabled(t *testing.T) {
+	client, err := NewClient(
+		WithBasicAuth("neo4j", "password"),
+		WithStreamingSupport(true),
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if client == nil {
+		t.Fatal("expected client to be non-nil")
+	}
+}
+
+func TestWithStreamingSupport_LegacyFlavor_Error(t *testing.T) {
+	_, err := NewClient(
+		WithBasicAuth("neo4j", "password"),
+		WithStreamingSupport(true),
+		WithAPIFlavor(FlavorLegacyHTTP),
+	)
+	if err == nil {
+		t.Fatal("expected error combining WithStreamingSupport(true) and FlavorLegacyHTTP")
+	}
+}
+
+func TestWithStreamingSupport_LegacyFlavor_OptionOrderIndependent(t *testing.T) {
+	_, err := NewClient(
+		WithBasicAuth("neo4j", "password"),
+		WithAPIFlavor(FlavorLegacyHTTP),
+		WithStreamingSupport(true),
+	)
+	if err == nil {
+		t.Fatal("expected error combining FlavorLegacyHTTP and WithStreamingSupport(true) regardless of option order")
+	}
+}
+
 func TestWithTimeout_Valid(t *testing.T) {
 	client, err := NewClient(
 		WithBasicAuth("neo4j", "password"),

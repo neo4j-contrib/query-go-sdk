@@ -48,6 +48,34 @@ func newClient(t *testing.T, srv *httptest.Server) *query.QueryAPIClient {
 	return client
 }
 
+func newStreamingClient(t *testing.T, srv *httptest.Server) *query.QueryAPIClient {
+	t.Helper()
+	client, err := query.NewClient(
+		query.WithBasicAuth("neo4j", "password"),
+		query.WithBaseURL(srv.URL),
+		query.WithTimeout(5*time.Second),
+		query.WithMaxRetry(1),
+		query.WithStreamingSupport(true),
+	)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	return client
+}
+
+// writeNDJSON writes each line followed by a newline, flushing after each one
+// so tests can genuinely exercise incremental delivery rather than a response
+// that happens to arrive as a single buffered write.
+func writeNDJSON(w http.ResponseWriter, lines ...string) {
+	flusher, _ := w.(http.Flusher)
+	for _, line := range lines {
+		_, _ = w.Write([]byte(line + "\n"))
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+}
+
 func validQueryPayload(fields []string, rows [][]any) map[string]any {
 	values := make([][]map[string]any, len(rows))
 	for i, row := range rows {
@@ -408,5 +436,128 @@ func TestCheckVersion_Integration_Unauthorised(t *testing.T) {
 	}
 	if !apiErr.IsUnauthorized() {
 		t.Errorf("expected IsUnauthorized() = true, got status %d", apiErr.StatusCode)
+	}
+}
+
+// ─── Streaming ──────────────────────────────────────────────────────────────
+
+func TestQuery_ExecuteStream_Success(t *testing.T) {
+	srv := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/vnd.neo4j.query.v1.1+jsonl")
+		w.WriteHeader(http.StatusOK)
+		writeNDJSON(w,
+			`{"$event":"Header","_body":{"fields":["name","age"]}}`,
+			`{"$event":"Record","_body":["Alice",32]}`,
+			`{"$event":"Record","_body":["Bob",29]}`,
+			`{"$event":"Summary","_body":{"bookmarks":["FB:kcwQ/wTfJf8rS1WY+GiIKXsCXgmQ"],"queryType":"r"}}`,
+		)
+	}))
+
+	result, err := newStreamingClient(t, srv).Query.ExecuteStream(context.Background(), "MATCH (n) RETURN n.name AS name, n.age AS age", nil)
+	if err != nil {
+		t.Fatalf("ExecuteStream: %v", err)
+	}
+
+	if got := result.Fields(); len(got) != 2 || got[0] != "name" || got[1] != "age" {
+		t.Errorf("expected fields [name age], got %v", got)
+	}
+
+	var names []string
+	for rec, err := range result.Records() {
+		if err != nil {
+			t.Fatalf("unexpected error iterating records: %v", err)
+		}
+		name, _ := rec.GetString("name")
+		names = append(names, name)
+	}
+	if len(names) != 2 || names[0] != "Alice" || names[1] != "Bob" {
+		t.Errorf("expected [Alice Bob], got %v", names)
+	}
+
+	summary := result.Summary()
+	if summary == nil {
+		t.Fatal("expected non-nil summary after draining records")
+	}
+	if len(summary.Bookmarks) != 1 || summary.Bookmarks[0] != "FB:kcwQ/wTfJf8rS1WY+GiIKXsCXgmQ" {
+		t.Errorf("unexpected bookmarks: %v", summary.Bookmarks)
+	}
+}
+
+func TestQuery_ExecuteStream_MidStreamError(t *testing.T) {
+	srv := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		writeNDJSON(w,
+			`{"$event":"Header","_body":{"fields":["name","age"]}}`,
+			`{"$event":"Error","_body":[{"code":"Neo.ClientError.Statement.SyntaxError","message":"Invalid input 'RETURN'"}]}`,
+		)
+	}))
+
+	result, err := newStreamingClient(t, srv).Query.ExecuteStream(context.Background(), "RETURN", nil)
+	if err != nil {
+		t.Fatalf("ExecuteStream: %v", err)
+	}
+
+	var gotErr error
+	for _, err := range result.Records() {
+		if err != nil {
+			gotErr = err
+			break
+		}
+	}
+
+	var qErr *query.QueryErrors
+	if !errors.As(gotErr, &qErr) {
+		t.Fatalf("expected *query.QueryErrors, got %T: %v", gotErr, gotErr)
+	}
+	if len(qErr.Errors) != 1 || qErr.Errors[0].Message != "Invalid input 'RETURN'" {
+		t.Errorf("unexpected errors: %v", qErr.Errors)
+	}
+}
+
+func TestQuery_ExecuteStream_SendsStreamingAcceptHeader(t *testing.T) {
+	var gotAccept string
+	srv := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAccept = r.Header.Get("Accept")
+		w.WriteHeader(http.StatusOK)
+		writeNDJSON(w, `{"$event":"Header","_body":{"fields":[]}}`, `{"$event":"Summary","_body":{}}`)
+	}))
+
+	result, err := newStreamingClient(t, srv).Query.ExecuteStream(context.Background(), "RETURN 1", nil)
+	if err != nil {
+		t.Fatalf("ExecuteStream: %v", err)
+	}
+	for range result.Records() {
+	}
+
+	const want = "application/vnd.neo4j.query.v1.1+jsonl"
+	if gotAccept != want {
+		t.Errorf("expected Accept %q, got %q", want, gotAccept)
+	}
+}
+
+func TestQuery_ExecuteStream_NotEnabled_Error(t *testing.T) {
+	called := false
+	srv := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		writeJSON(w, http.StatusOK, validQueryPayload([]string{}, nil))
+	}))
+
+	_, err := newClient(t, srv).Query.ExecuteStream(context.Background(), "RETURN 1", nil)
+	if err == nil {
+		t.Fatal("expected error when WithStreamingSupport was not set")
+	}
+	if called {
+		t.Error("expected no HTTP call to be made")
+	}
+}
+
+func TestNewClient_StreamingSupport_RejectsLegacyFlavor(t *testing.T) {
+	_, err := query.NewClient(
+		query.WithBasicAuth("neo4j", "password"),
+		query.WithStreamingSupport(true),
+		query.WithAPIFlavor(query.FlavorLegacyHTTP),
+	)
+	if err == nil {
+		t.Fatal("expected error combining WithStreamingSupport(true) and FlavorLegacyHTTP")
 	}
 }

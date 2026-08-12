@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -13,6 +14,14 @@ import (
 type Response struct {
 	StatusCode int
 	Body       []byte
+}
+
+// StreamResponse represents a streaming response from the Query API. Body is
+// the live, unread response body — the caller is responsible for reading and
+// closing it.
+type StreamResponse struct {
+	StatusCode int
+	Body       io.ReadCloser
 }
 
 // Error represents an error response from the Query API.
@@ -101,6 +110,10 @@ type DiscoveryResponse struct {
 // This is the middle layer that handles authentication and common API patterns.
 type RequestService interface {
 	Post(ctx context.Context, body string) (*Response, error)
+	// PostStream performs an authenticated POST request requesting the Query
+	// API's streaming (JSON Lines) response format. The caller must close the
+	// returned StreamResponse's Body.
+	PostStream(ctx context.Context, body string) (*StreamResponse, error)
 	// Discover calls the Neo4j discovery endpoint (GET /) and returns server metadata,
 	// including the neo4j_version field used by CheckVersion.
 	Discover(ctx context.Context) (*DiscoveryResponse, error)

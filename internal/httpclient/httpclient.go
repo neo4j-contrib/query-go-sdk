@@ -100,6 +100,21 @@ func (s *httpService) Post(ctx context.Context, url string, headers map[string]s
 	return s.doRequest(ctx, http.MethodPost, url, headers, body)
 }
 
+// PostStream performs an HTTP POST request and returns the response with its
+// body unread, for incremental (streaming) consumption by the caller.
+func (s *httpService) PostStream(ctx context.Context, url string, headers map[string]string, body string) (*StreamResponse, error) {
+	resp, err := s.executeRequest(ctx, http.MethodPost, url, headers, body)
+	if err != nil {
+		return nil, err
+	}
+
+	return &StreamResponse{
+		StatusCode: resp.StatusCode,
+		Body:       newLimitedReadCloser(resp.Body, s.maxResponseSize),
+		Headers:    resp.Header,
+	}, nil
+}
+
 // Put performs an HTTP PUT request with the provided headers and body.
 func (s *httpService) Put(ctx context.Context, url string, headers map[string]string, body string) (*HTTPResponse, error) {
 	return s.doRequest(ctx, http.MethodPut, url, headers, body)
@@ -115,10 +130,11 @@ func (s *httpService) Delete(ctx context.Context, url string, headers map[string
 	return s.doRequest(ctx, http.MethodDelete, url, headers, "")
 }
 
-// doRequest is the shared implementation for all HTTP methods. It builds the
-// request, attaches headers and the caller's context, executes it via the
-// retryable client, and reads the response body up to DefaultMaxResponseSize.
-func (s *httpService) doRequest(ctx context.Context, method, url string, headers map[string]string, body string) (*HTTPResponse, error) {
+// executeRequest builds the request, attaches headers and the caller's
+// context, and executes it via the retryable client. The caller owns
+// resp.Body and must close it. Shared by doRequest (which buffers the body)
+// and PostStream (which hands the live body to the caller).
+func (s *httpService) executeRequest(ctx context.Context, method, url string, headers map[string]string, body string) (*http.Response, error) {
 	var bodyReader io.Reader
 	if body != "" {
 		bodyReader = strings.NewReader(body)
@@ -139,7 +155,13 @@ func (s *httpService) doRequest(ctx context.Context, method, url string, headers
 		slog.String("url", url),
 	)
 
-	resp, err := s.client.Do(req)
+	return s.client.Do(req)
+}
+
+// doRequest is the shared implementation for all buffered HTTP methods. It
+// executes the request and reads the response body up to DefaultMaxResponseSize.
+func (s *httpService) doRequest(ctx context.Context, method, url string, headers map[string]string, body string) (*HTTPResponse, error) {
+	resp, err := s.executeRequest(ctx, method, url, headers, body)
 	if err != nil {
 		return nil, err
 	}

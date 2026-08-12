@@ -18,6 +18,7 @@ result, err := query.WithTransformer(client.Query, ctx,
 - [Configuration](#configuration)
 - [API Flavors](#api-flavors)
 - [Access Mode](#access-mode)
+- [Streaming](#streaming)
 - [Context and Timeouts](#context-and-timeouts)
 - [Executing Queries](#executing-queries)
 - [Transformers](#transformers)
@@ -122,6 +123,7 @@ client, err := query.NewClient(
 | `WithDefaultHeaders(map)` | — | Extra headers sent with every request; `Authorization`, `Content-Type`, `Accept`, and `User-Agent` are protected and cannot be overridden |
 | `WithAPIFlavor(f)` | `FlavorQueryV2` | Select which HTTP API endpoint to target; see [API Flavors](#api-flavors) |
 | `WithAccessMode(m)` | `AccessModeUnset` | Set the access mode sent with every request; see [Access Mode](#access-mode) |
+| `WithStreamingSupport(b)` | `false` | Enable the Query API's streaming (JSON Lines) response format and unlock `ExecuteStream`; see [Streaming](#streaming) |
 
 ```go
 client, err := query.NewClient(
@@ -198,6 +200,48 @@ client, err := query.NewClient(
     query.WithAccessMode(query.AccessModeWrite),
 )
 ```
+
+---
+
+## Streaming
+
+By default, `Execute` buffers the entire query result before returning it. `WithStreamingSupport(true)` switches the wire format to the Query API's streaming (JSON Lines) response and unlocks `QueryService.ExecuteStream`, which decodes records incrementally as they arrive instead of holding the full result in memory. This matters for large result sets, and lets a consumer start processing rows before the server has finished sending them.
+
+```go
+client, err := query.NewClient(
+    query.WithBasicAuth("neo4j", "password"),
+    query.WithBaseURL("http://localhost:7474"),
+    query.WithStreamingSupport(true),
+)
+```
+
+`ExecuteStream` returns a `*query.StreamResult`. Iterate over `Records()` with a standard Go range loop; the same `*query.Record` accessors described in [Working with Records](#working-with-records) apply to each row:
+
+```go
+result, err := client.Query.ExecuteStream(ctx, "MATCH (n:Person) RETURN n.name AS name", nil)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Println(result.Fields()) // ["name"] — available immediately, before any rows
+
+for rec, err := range result.Records() {
+    if err != nil {
+        log.Fatal(err) // transport/decode error, or a *query.QueryErrors surfaced mid-stream
+    }
+    name, _ := rec.GetString("name")
+    fmt.Println(name)
+}
+
+summary := result.Summary() // bookmarks, notifications, timings — populated once Records() is fully drained
+fmt.Println(summary.Bookmarks)
+```
+
+Breaking out of the loop early still releases the underlying HTTP connection — `Records()` closes it automatically whether iteration ends naturally, on error, or via an early `break`. Call `result.Close()` directly if you need to abandon a stream without iterating at all.
+
+`WithStreamingSupport` is a client-wide setting: `Execute` is unaffected by it, and `ExecuteStream` returns an error if the client wasn't constructed with it enabled. It is not supported together with `WithAPIFlavor(query.FlavorLegacyHTTP)` — `NewClient` returns an error if both are set, since the legacy Cypher HTTP Transaction API has no streaming format.
+
+Because `ExecuteStream` returns before the response body has been fully read, the request's timeout (`WithTimeout`, default 120s) bounds the *entire* stream lifetime — from the initial request through however long the caller takes to finish draining `Records()` — not just the time to the first byte. Raise `WithTimeout` for clients that stream very large results or consume them slowly.
 
 ---
 
