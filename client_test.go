@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"testing"
 	"time"
 
@@ -311,6 +312,81 @@ func TestDefaultOptions(t *testing.T) {
 func TestClientVersion_IsNotEmpty(t *testing.T) {
 	if ClientVersion == "" {
 		t.Error("ClientVersion must not be empty")
+	}
+}
+
+// ============================================================================
+// resolveClientVersion
+//
+// This module is always its own main module under `go test`, so it can never
+// appear in its own info.Deps — these tests exercise resolveClientVersion
+// directly against a hand-built debug.BuildInfo instead, standing in for a
+// consumer's build info.
+// ============================================================================
+
+func TestResolveClientVersion_DependencyPresent(t *testing.T) {
+	info := &debug.BuildInfo{
+		Main: debug.Module{Path: "example.com/consumer", Version: "(devel)"},
+		Deps: []*debug.Module{
+			{Path: "github.com/some/other-dep", Version: "v9.9.9"},
+			{Path: moduleName, Version: "v1.2.3"},
+		},
+	}
+	if got := resolveClientVersion(info); got != "v1.2.3" {
+		t.Errorf("resolveClientVersion() = %q, want v1.2.3", got)
+	}
+}
+
+func TestResolveClientVersion_Replaced(t *testing.T) {
+	info := &debug.BuildInfo{
+		Deps: []*debug.Module{
+			{
+				Path:    moduleName,
+				Version: "v1.2.3",
+				Replace: &debug.Module{Path: "../local-fork", Version: "v1.9.0"},
+			},
+		},
+	}
+	if got := resolveClientVersion(info); got != "v1.9.0" {
+		t.Errorf("resolveClientVersion() = %q, want v1.9.0 (from Replace)", got)
+	}
+}
+
+func TestResolveClientVersion_LocalReplace_Devel(t *testing.T) {
+	// A `replace` to a local filesystem path with no pinned version reports
+	// literally "(devel)", the same sentinel Go uses for the main module —
+	// treat it as not-found so the caller's fallback kicks in instead of
+	// surfacing the raw "(devel)" string as if it were a real version.
+	info := &debug.BuildInfo{
+		Deps: []*debug.Module{
+			{
+				Path:    moduleName,
+				Version: "v1.2.3",
+				Replace: &debug.Module{Path: "../local-fork", Version: "(devel)"},
+			},
+		},
+	}
+	if got := resolveClientVersion(info); got != "" {
+		t.Errorf("resolveClientVersion() = %q, want empty for a local (devel) replace", got)
+	}
+}
+
+func TestResolveClientVersion_NotFound(t *testing.T) {
+	info := &debug.BuildInfo{
+		Main: debug.Module{Path: "example.com/consumer", Version: "(devel)"},
+		Deps: []*debug.Module{
+			{Path: "github.com/some/other-dep", Version: "v9.9.9"},
+		},
+	}
+	if got := resolveClientVersion(info); got != "" {
+		t.Errorf("resolveClientVersion() = %q, want empty", got)
+	}
+}
+
+func TestResolveClientVersion_NoDeps(t *testing.T) {
+	info := &debug.BuildInfo{Main: debug.Module{Path: "example.com/consumer", Version: "(devel)"}}
+	if got := resolveClientVersion(info); got != "" {
+		t.Errorf("resolveClientVersion() = %q, want empty", got)
 	}
 }
 

@@ -52,6 +52,31 @@ func TestDecodeResponse_Success(t *testing.T) {
 	}
 }
 
+func TestDecodeResponse_QueryTypeAndTimings(t *testing.T) {
+	// Values mirror the Query API docs' non-streaming typed JSON example response.
+	body := []byte(`{
+		"data": {"fields": [], "values": []},
+		"bookmarks": ["FB:kcwQ/wTfJf8rS1WY+GiIKXsCXg6Q"],
+		"queryType": "rw",
+		"resultAvailableAfter": 10,
+		"resultConsumedAfter": 25
+	}`)
+
+	resp, err := DecodeResponse(body)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.QueryType != "rw" {
+		t.Errorf("queryType = %q, want rw", resp.QueryType)
+	}
+	if resp.ResultAvailableAfter != 10*time.Millisecond {
+		t.Errorf("resultAvailableAfter = %v, want 10ms", resp.ResultAvailableAfter)
+	}
+	if resp.ResultConsumedAfter != 25*time.Millisecond {
+		t.Errorf("resultConsumedAfter = %v, want 25ms", resp.ResultConsumedAfter)
+	}
+}
+
 func TestDecodeResponse_SingleError(t *testing.T) {
 	body := []byte(`{
 		"errors": [{"code": "Neo.ClientError.Statement.SyntaxError", "message": "Invalid syntax"}]
