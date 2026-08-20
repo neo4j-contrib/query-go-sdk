@@ -17,13 +17,23 @@ import (
 // Response is the fully decoded top-level Query API response.
 // QueryPlan is non-nil only when the Cypher statement was prefixed with
 // EXPLAIN or PROFILE. Notifications is non-nil when Neo4j has advisory
-// warnings or hints about the executed statement.
+// warnings or hints about the executed statement. QueryType and the timing
+// fields are zero-valued for the legacy HTTP Transaction API flavor, which
+// doesn't return this metadata.
 type Response struct {
 	Fields        []string
 	Rows          [][]any
 	QueryPlan     *PlanOperator
 	Notifications []Notification
 	Bookmarks     []string
+
+	// QueryType is the kind of query executed: "r" (read only), "rw" (read
+	// write), "w" (write only), or "s" (schema write).
+	QueryType string
+	// ResultAvailableAfter is how long the result took to become available.
+	ResultAvailableAfter time.Duration
+	// ResultConsumedAfter is how long the result took to be fully consumed.
+	ResultConsumedAfter time.Duration
 }
 
 // Warnings returns only the notifications with severity "WARNING".

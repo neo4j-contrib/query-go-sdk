@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/neo4j-contrib/query-go-sdk/internal/decode"
 )
@@ -20,6 +21,14 @@ type EagerResult struct {
 	Notifications []decode.Notification
 	QueryPlan     *decode.PlanOperator
 	Bookmarks     []string
+
+	// QueryType is the kind of query executed: "r" (read only), "rw" (read
+	// write), "w" (write only), or "s" (schema write).
+	QueryType string
+	// ResultAvailableAfter is how long the result took to become available.
+	ResultAvailableAfter time.Duration
+	// ResultConsumedAfter is how long the result took to be fully consumed.
+	ResultConsumedAfter time.Duration
 }
 
 // HasWarnings returns true if any WARNING severity notifications are present.
@@ -61,6 +70,7 @@ func (e *EagerResult) String() string {
 		fmt.Fprintf(&b, "QueryPlan: %s\n", e.QueryPlan.OperatorType)
 	}
 	fmt.Fprintf(&b, "Bookmarks: %v\n", e.Bookmarks)
+	fmt.Fprintf(&b, "QueryType: %s\n", e.QueryType)
 	return b.String()
 }
 
@@ -91,11 +101,14 @@ var EagerResultTransformer ResultTransformer[*EagerResult] = func(resp *decode.R
 		records[i] = newRecord(resp.Fields, row)
 	}
 	return &EagerResult{
-		Keys:          resp.Fields,
-		Records:       records,
-		Notifications: resp.Notifications,
-		QueryPlan:     resp.QueryPlan,
-		Bookmarks:     resp.Bookmarks,
+		Keys:                 resp.Fields,
+		Records:              records,
+		Notifications:        resp.Notifications,
+		QueryPlan:            resp.QueryPlan,
+		Bookmarks:            resp.Bookmarks,
+		QueryType:            resp.QueryType,
+		ResultAvailableAfter: resp.ResultAvailableAfter,
+		ResultConsumedAfter:  resp.ResultConsumedAfter,
 	}, nil
 }
 

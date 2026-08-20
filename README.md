@@ -167,7 +167,7 @@ Everything else — transformers, records, error handling — works identically 
 
 #### Type mapping differences
 
-The legacy API returns row values as plain JSON without typed envelopes. Scalars (`string`, `int64`, `float64`, `bool`, `nil`) decode identically to `FlavorQueryV2`. However, graph entities are returned as plain `map[string]any` instead of `*query.Node` / `*query.Relationship`, because the `/tx/commit` endpoint does not include element IDs or labels in the row format. `rec.GetNode` and `rec.GetRelationship` will return `(nil, false)` for those values.
+The legacy API returns row values as plain JSON without typed envelopes. Scalars (`string`, `int64`, `float64`, `bool`, `nil`) decode identically to `FlavorQueryV2`. However, graph entities are returned as plain `map[string]any` instead of `*query.Node` / `*query.Relationship`, because the `/tx/commit` endpoint does not include element IDs or labels in the row format. `rec.GetNode` and `rec.GetRelationship` will return `(nil, false)` for those values. The `/tx/commit` endpoint also doesn't return `queryType`/timing metadata, so `Response.QueryType`, `ResultAvailableAfter`, and `ResultConsumedAfter` stay at their zero values for `FlavorLegacyHTTP`.
 
 ---
 
@@ -237,6 +237,8 @@ summary := result.Summary() // bookmarks, notifications, timings — populated o
 fmt.Println(summary.Bookmarks)
 ```
 
+`StreamSummary` carries the same `QueryType`, `ResultAvailableAfter`, and `ResultConsumedAfter` fields as `query.Response`/`EagerResult` — Neo4j reports this metadata identically whether or not streaming is enabled.
+
 Breaking out of the loop early still releases the underlying HTTP connection — `Records()` closes it automatically whether iteration ends naturally, on error, or via an early `break`. Call `result.Close()` directly if you need to abandon a stream without iterating at all.
 
 `WithStreamingSupport` is a client-wide setting: `Execute` is unaffected by it, and `ExecuteStream` returns an error if the client wasn't constructed with it enabled. It is not supported together with `WithAPIFlavor(query.FlavorLegacyHTTP)` — `NewClient` returns an error if both are set, since the legacy Cypher HTTP Transaction API has no streaming format.
@@ -296,6 +298,9 @@ fmt.Println(resp.Bookmarks)
 | `Notifications` | `[]query.Notification` | Advisory messages from Neo4j |
 | `Bookmarks` | `[]string` | Transaction bookmarks |
 | `QueryPlan` | `*query.PlanOperator` | Non-nil for EXPLAIN/PROFILE queries |
+| `QueryType` | `string` | `"r"` (read), `"rw"` (read/write), `"w"` (write), or `"s"` (schema write) |
+| `ResultAvailableAfter` | `time.Duration` | Time for the result to become available |
+| `ResultConsumedAfter` | `time.Duration` | Time to fully consume the result |
 
 ### Passing parameters
 
@@ -347,7 +352,7 @@ for _, rec := range result.Records {
 }
 ```
 
-`EagerResult` also exposes `HasWarnings()` and `Warnings()` for advisory notifications.
+`EagerResult` also exposes `HasWarnings()` and `Warnings()` for advisory notifications, and the same `QueryType`, `ResultAvailableAfter`, and `ResultConsumedAfter` fields documented above for `query.Response`.
 
 ### Collect
 
@@ -617,7 +622,7 @@ Three GitHub Actions workflows manage CI and the release process.
 
 Releases follow a three-step process. changie collects the unreleased fragment files and determines the correct semver bump automatically from the change kinds (`Added` → minor, `Fixed`/`Security` → patch, `Changed`/`Removed` → major).
 
-There is **no manual version bump** required. `ClientVersion` uses `debug.ReadBuildInfo()` at runtime to read the module version that the Go toolchain embeds when a consumer builds their application. It falls back to `"development"` only in local and test builds.
+There is **no manual version bump** required. `ClientVersion` uses `debug.ReadBuildInfo()` at runtime, scanning the consumer's dependency list (`info.Deps`) for this module's own entry to read the version the Go toolchain embedded when the consumer built their application — `info.Main` describes the consumer's own application, not this SDK, so it's deliberately not used. It falls back to `"development"` only when this module can't be found in `Deps` at all, e.g. local and test builds of this repository itself.
 
 **1. Batch and merge the changelog**
 

@@ -118,6 +118,46 @@ func TestQuery_Execute_Success(t *testing.T) {
 	}
 }
 
+func TestQuery_Execute_QueryTypeAndTimings(t *testing.T) {
+	payload := validQueryPayload([]string{"name"}, [][]any{{"Alice"}})
+	payload["queryType"] = "rw"
+	payload["resultAvailableAfter"] = 10
+	payload["resultConsumedAfter"] = 25
+
+	srv := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, payload)
+	}))
+
+	result, err := newClient(t, srv).Query.Execute(context.Background(), "MATCH (n:Person) SET n.seen = true RETURN n.name AS name", nil)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.QueryType != "rw" {
+		t.Errorf("queryType = %q, want rw", result.QueryType)
+	}
+	if result.ResultAvailableAfter != 10*time.Millisecond {
+		t.Errorf("resultAvailableAfter = %v, want 10ms", result.ResultAvailableAfter)
+	}
+	if result.ResultConsumedAfter != 25*time.Millisecond {
+		t.Errorf("resultConsumedAfter = %v, want 25ms", result.ResultConsumedAfter)
+	}
+
+	// Same information should flow through EagerResultTransformer too.
+	eager, err := query.WithTransformer(newClient(t, srv).Query, context.Background(), "MATCH (n:Person) SET n.seen = true RETURN n.name AS name", nil, query.EagerResultTransformer)
+	if err != nil {
+		t.Fatalf("WithTransformer: %v", err)
+	}
+	if eager.QueryType != "rw" {
+		t.Errorf("EagerResult.queryType = %q, want rw", eager.QueryType)
+	}
+	if eager.ResultAvailableAfter != 10*time.Millisecond {
+		t.Errorf("EagerResult.resultAvailableAfter = %v, want 10ms", eager.ResultAvailableAfter)
+	}
+	if eager.ResultConsumedAfter != 25*time.Millisecond {
+		t.Errorf("EagerResult.resultConsumedAfter = %v, want 25ms", eager.ResultConsumedAfter)
+	}
+}
+
 func TestQuery_Execute_SendsCorrectPath(t *testing.T) {
 	payload := validQueryPayload([]string{}, nil)
 

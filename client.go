@@ -55,6 +55,10 @@ import (
 // in source — there is no need to update it before tagging a release.
 const clientVersionFallback = "development"
 
+// moduleName is this module's own import path, matching the `module` directive in go.mod.
+// It identifies this SDK's own entry in a consumer's dependency list — see resolveClientVersion.
+const moduleName = "github.com/neo4j-contrib/query-go-sdk"
+
 // ClientVersion is the version of this client library, embedded in every User-Agent header.
 //
 // Why debug.ReadBuildInfo()?
@@ -64,14 +68,47 @@ const clientVersionFallback = "development"
 // reads that information at runtime, so the User-Agent automatically reflects the version the
 // consumer actually imported (e.g. "v1.10.0") without any source edits or workflow tricks.
 //
-// In local and test builds, ReadBuildInfo returns "(devel)" or fails entirely, so we fall back
-// to clientVersionFallback ("development") to make it obvious the binary is not a release build.
+// Why info.Deps and not info.Main?
+// info.Main describes the consumer's own application module, not this SDK — its Version is
+// "(devel)" for essentially any normal `go build` regardless of which SDK version was imported.
+// This SDK's own version only appears in info.Deps, keyed by module path, which is what
+// resolveClientVersion looks up.
+//
+// In local and test builds (where this module is its own main module and so never appears in
+// its own Deps) or if the lookup otherwise comes up empty, we fall back to clientVersionFallback
+// ("development") to make it obvious the binary is not tracking a release.
 var ClientVersion = clientVersionFallback
 
 func init() {
-	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
-		ClientVersion = info.Main.Version
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if v := resolveClientVersion(info); v != "" {
+			ClientVersion = v
+		}
 	}
+}
+
+// resolveClientVersion finds this module's own version in a consumer's build info by scanning
+// info.Deps for moduleName. A replaced dependency's effective version comes from Replace,
+// matching how `go list -m` reports it — this is also how a local filesystem `replace` (no
+// tagged version to report) surfaces, as the literal string "(devel)", so that value is treated
+// the same as "not found" here, just as it always has been for info.Main.Version. Returns "" if
+// this module isn't found at all (e.g. it is the main module itself, as in this module's own
+// tests) or only resolves to "(devel)".
+func resolveClientVersion(info *debug.BuildInfo) string {
+	for _, dep := range info.Deps {
+		if dep.Path != moduleName {
+			continue
+		}
+		version := dep.Version
+		if dep.Replace != nil {
+			version = dep.Replace.Version
+		}
+		if version == "(devel)" {
+			return ""
+		}
+		return version
+	}
+	return ""
 }
 
 // ============================================================================

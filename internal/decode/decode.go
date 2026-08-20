@@ -23,16 +23,22 @@ type typedValue struct {
 	Value json.RawMessage `json:"_value"`
 }
 
-// wireResponse is the raw top-level response shape before decoding.
+// wireResponse is the raw top-level response shape before decoding. QueryType
+// and the timing fields mirror wireStreamSummaryBody (stream.go) — Neo4j sends
+// the same execution metadata on both the buffered and streaming response
+// formats.
 type wireResponse struct {
 	Data struct {
 		Fields []string            `json:"fields"`
 		Values [][]json.RawMessage `json:"values"`
 	} `json:"data"`
-	QueryPlan     *wirePlanOperator `json:"queryPlan,omitempty"`
-	Notifications []Notification    `json:"notifications,omitempty"`
-	Bookmarks     []string          `json:"bookmarks"`
-	Errors        []QueryError      `json:"errors,omitempty"`
+	QueryPlan            *wirePlanOperator `json:"queryPlan,omitempty"`
+	Notifications        []Notification    `json:"notifications,omitempty"`
+	Bookmarks            []string          `json:"bookmarks"`
+	Errors               []QueryError      `json:"errors,omitempty"`
+	QueryType            string            `json:"queryType,omitempty"`
+	ResultAvailableAfter int64             `json:"resultAvailableAfter,omitempty"`
+	ResultConsumedAfter  int64             `json:"resultConsumedAfter,omitempty"`
 }
 
 // wirePlanOperator is the raw shape of one node in the query plan tree.
@@ -112,10 +118,13 @@ func DecodeResponse(body []byte) (*Response, error) {
 	}
 
 	resp := &Response{
-		Fields:        wire.Data.Fields,
-		Rows:          rows,
-		Notifications: wire.Notifications,
-		Bookmarks:     wire.Bookmarks,
+		Fields:               wire.Data.Fields,
+		Rows:                 rows,
+		Notifications:        wire.Notifications,
+		Bookmarks:            wire.Bookmarks,
+		QueryType:            wire.QueryType,
+		ResultAvailableAfter: time.Duration(wire.ResultAvailableAfter) * time.Millisecond,
+		ResultConsumedAfter:  time.Duration(wire.ResultConsumedAfter) * time.Millisecond,
 	}
 
 	// Decode query plan if present (EXPLAIN / PROFILE responses).

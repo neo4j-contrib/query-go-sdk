@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/neo4j-contrib/query-go-sdk/internal/decode"
 )
@@ -95,6 +96,29 @@ func TestEagerResultTransformer_MultipleRows(t *testing.T) {
 	}
 	if len(res.Bookmarks) != 1 || res.Bookmarks[0] != "bm1" {
 		t.Errorf("bookmarks = %v", res.Bookmarks)
+	}
+}
+
+func TestEagerResultTransformer_QueryTypeAndTimings(t *testing.T) {
+	resp := &decode.Response{
+		Fields:               []string{"name"},
+		Rows:                 [][]any{{"Alice"}},
+		QueryType:            "rw",
+		ResultAvailableAfter: 10 * time.Millisecond,
+		ResultConsumedAfter:  25 * time.Millisecond,
+	}
+	res, err := EagerResultTransformer(resp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.QueryType != "rw" {
+		t.Errorf("queryType = %q, want rw", res.QueryType)
+	}
+	if res.ResultAvailableAfter != 10*time.Millisecond {
+		t.Errorf("resultAvailableAfter = %v, want 10ms", res.ResultAvailableAfter)
+	}
+	if res.ResultConsumedAfter != 25*time.Millisecond {
+		t.Errorf("resultConsumedAfter = %v, want 25ms", res.ResultConsumedAfter)
 	}
 }
 
