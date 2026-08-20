@@ -1,3 +1,0 @@
-kind: Fixed
-body: ClientVersion (and the User-Agent header sent with every request) now correctly resolves the imported module's own version from the consumer's dependency list, instead of reading the consumer's own application version (almost always (devel)) and silently falling back to development
-time: 2026-08-20T08:58:24.489823+01:00

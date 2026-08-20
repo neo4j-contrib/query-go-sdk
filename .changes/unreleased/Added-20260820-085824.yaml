@@ -1,3 +1,0 @@
-kind: Added
-body: Response and EagerResult now expose QueryType, ResultAvailableAfter, and ResultConsumedAfter, matching the streaming StreamSummary; this metadata was already returned by the Query API's non-streaming endpoint but wasn't being decoded
-time: 2026-08-20T08:58:24.483464+01:00
