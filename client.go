@@ -254,10 +254,11 @@ func WithTimeout(timeout time.Duration) Option {
 }
 
 // WithMaxRetry sets the maximum number of retries for failed requests. Defaults to 3.
+// A value of 0 disables retries entirely; negative values are rejected.
 func WithMaxRetry(maxRetry int) Option {
 	return func(o *options) error {
-		if maxRetry <= 0 {
-			return errors.New("max retries must be greater than zero")
+		if maxRetry < 0 {
+			return errors.New("max retries must not be negative")
 		}
 		o.config.apiRetryMax = maxRetry
 		return nil
@@ -544,6 +545,7 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 		accessMode:       o.config.accessMode,
 		streamingEnabled: o.config.streaming,
 		maxResponseSize:  o.config.maxResponseSize,
+		maxRetry:         o.config.apiRetryMax,
 	}
 
 	service.logger.Info("Query API client initialized successfully",

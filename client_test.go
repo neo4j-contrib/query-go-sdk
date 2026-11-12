@@ -170,13 +170,35 @@ func TestWithMaxRetry_Valid(t *testing.T) {
 	}
 }
 
-func TestWithMaxRetry_Zero_Error(t *testing.T) {
-	_, err := NewClient(
+func TestWithMaxRetry_Zero_DisablesRetries(t *testing.T) {
+	opts := &options{}
+	opts.config.apiRetryMax = 3
+	if err := WithMaxRetry(0)(opts); err != nil {
+		t.Fatalf("expected no error for zero max retry, got %v", err)
+	}
+	if opts.config.apiRetryMax != 0 {
+		t.Errorf("expected apiRetryMax 0, got %d", opts.config.apiRetryMax)
+	}
+
+	client, err := NewClient(
 		WithBasicAuth("neo4j", "password"),
 		WithMaxRetry(0),
 	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if client == nil {
+		t.Fatal("expected client to be non-nil")
+	}
+}
+
+func TestWithMaxRetry_Negative_Error(t *testing.T) {
+	_, err := NewClient(
+		WithBasicAuth("neo4j", "password"),
+		WithMaxRetry(-1),
+	)
 	if err == nil {
-		t.Fatal("expected error for zero max retry")
+		t.Fatal("expected error for negative max retry")
 	}
 }
 
