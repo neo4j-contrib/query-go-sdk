@@ -1,3 +1,0 @@
-kind: Added
-body: Query counters - Response, EagerResult and StreamSummary expose Counters when WithIncludeCounters is set
-time: 2026-11-12T15:01:00.000000+00:00
