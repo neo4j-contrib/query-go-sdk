@@ -29,7 +29,7 @@ type streamResult struct {
 	err  error
 }
 
-func (m *seqMock) Post(_ context.Context, _ string) (*api.Response, error) {
+func (m *seqMock) Post(_ context.Context, _ []byte) (*api.Response, error) {
 	i := int(m.pCalls.Add(1)) - 1
 	if i >= len(m.posts) {
 		i = len(m.posts) - 1
@@ -37,7 +37,7 @@ func (m *seqMock) Post(_ context.Context, _ string) (*api.Response, error) {
 	return m.posts[i].resp, m.posts[i].err
 }
 
-func (m *seqMock) PostStream(_ context.Context, _ string) (*api.StreamResponse, error) {
+func (m *seqMock) PostStream(_ context.Context, _ []byte) (*api.StreamResponse, error) {
 	i := int(m.sCalls.Add(1)) - 1
 	if i >= len(m.streams) {
 		i = len(m.streams) - 1
@@ -62,7 +62,7 @@ var okBody = []byte(`{"data":{"fields":["n"],"values":[[{"$type":"Integer","_val
 func newRetryService(m api.RequestService, maxRetry int) *queryService {
 	return &queryService{
 		api: m, timeout: 10 * time.Second, logger: testLogger(),
-		maxRetry: maxRetry, retryBackoff: time.Millisecond,
+		maxTransientRetry: maxRetry, retryBackoff: time.Millisecond,
 	}
 }
 

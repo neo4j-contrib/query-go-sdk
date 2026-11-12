@@ -36,13 +36,13 @@ func TestBehavior_AllMethodsDispatchCorrectly(t *testing.T) {
 			return svc.Get(context.Background(), url, nil)
 		}},
 		{"POST", func(svc httpclient.HTTPService, url string) (*httpclient.HTTPResponse, error) {
-			return svc.Post(context.Background(), url, nil, "")
+			return svc.Post(context.Background(), url, nil, []byte(""))
 		}},
 		{"PUT", func(svc httpclient.HTTPService, url string) (*httpclient.HTTPResponse, error) {
-			return svc.Put(context.Background(), url, nil, "")
+			return svc.Put(context.Background(), url, nil, []byte(""))
 		}},
 		{"PATCH", func(svc httpclient.HTTPService, url string) (*httpclient.HTTPResponse, error) {
-			return svc.Patch(context.Background(), url, nil, "")
+			return svc.Patch(context.Background(), url, nil, []byte(""))
 		}},
 		{"DELETE", func(svc httpclient.HTTPService, url string) (*httpclient.HTTPResponse, error) {
 			return svc.Delete(context.Background(), url, nil)
@@ -113,7 +113,7 @@ func TestBehavior_RequestBodyForwarded(t *testing.T) {
 	defer srv.Close()
 
 	svc := newSvc(5 * time.Second)
-	_, err := svc.Post(context.Background(), srv.URL, nil, expectedBody)
+	_, err := svc.Post(context.Background(), srv.URL, nil, []byte(expectedBody))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestBehavior_ResponseContainsStatusCodeBodyAndHeaders(t *testing.T) {
 	defer srv.Close()
 
 	svc := newSvc(5 * time.Second)
-	resp, err := svc.Post(context.Background(), srv.URL, nil, `{}`)
+	resp, err := svc.Post(context.Background(), srv.URL, nil, []byte(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

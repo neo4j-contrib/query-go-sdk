@@ -63,13 +63,13 @@ func isRetryableTransient(err error) bool {
 
 // shouldRetry reports whether attempt (0-based) that failed with err should be
 // followed by another attempt.
-func (q *queryService) shouldRetry(ctx context.Context, err error, attempt int) bool {
-	return attempt < q.maxRetry && ctx.Err() == nil && isRetryableTransient(err)
+func (q *queryService) shouldRetry(ctx context.Context, plan *callPlan, err error, attempt int) bool {
+	return attempt < plan.transientMax && ctx.Err() == nil && isRetryableTransient(err)
 }
 
 // backoff logs and sleeps before the next attempt using exponential backoff
 // with jitter. It returns the context error if ctx ends while waiting.
-func (q *queryService) backoff(ctx context.Context, err error, attempt int) error {
+func (q *queryService) backoff(ctx context.Context, plan *callPlan, err error, attempt int) error {
 	base := q.retryBackoff
 	if base <= 0 {
 		base = defaultTransientBackoff
@@ -83,7 +83,7 @@ func (q *queryService) backoff(ctx context.Context, err error, attempt int) erro
 
 	q.logger.WarnContext(ctx, "retrying after transient error",
 		slog.Int("attempt", attempt+1),
-		slog.Int("max_retry", q.maxRetry),
+		slog.Int("max_retry", plan.transientMax),
 		slog.Duration("wait", d),
 		slog.String("error", err.Error()),
 	)

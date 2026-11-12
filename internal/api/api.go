@@ -34,6 +34,16 @@ const (
 // this just guards against a misbehaving server sending something huge.
 const maxStreamErrorBodySize = 64 * 1024
 
+type accessModeKey struct{}
+
+// WithAccessMode returns a context that overrides, for requests made with it,
+// the access mode configured on the service. It only affects the legacy
+// flavor, where the mode is sent as the Access-Mode header; for Query API v2
+// the mode travels in the request body instead.
+func WithAccessMode(ctx context.Context, mode AccessMode) context.Context {
+	return context.WithValue(ctx, accessModeKey{}, mode)
+}
+
 func (b *BasicCredentials) Authorize() string {
 	return "Basic " + utils.Base64Encode(b.Username, b.Password)
 }
@@ -168,7 +178,7 @@ func (s *apiRequestService) Discover(ctx context.Context) (*DiscoveryResponse, e
 }
 
 // Post performs an authenticated POST request.
-func (s *apiRequestService) Post(ctx context.Context, body string) (*Response, error) {
+func (s *apiRequestService) Post(ctx context.Context, body []byte) (*Response, error) {
 	return s.doAuthenticatedRequest(ctx, http.MethodPost, body)
 }
 
@@ -176,7 +186,7 @@ func (s *apiRequestService) Post(ctx context.Context, body string) (*Response, e
 // API's streaming (JSON Lines) response format. It is only meaningful against
 // the Query API v2 endpoint — callers are responsible for not invoking it
 // when the client is configured for the legacy HTTP Transaction API flavor.
-func (s *apiRequestService) PostStream(ctx context.Context, body string) (*StreamResponse, error) {
+func (s *apiRequestService) PostStream(ctx context.Context, body []byte) (*StreamResponse, error) {
 	if err := ctx.Err(); err != nil {
 		s.logger.ErrorContext(ctx, "context already cancelled before stream request", slog.String("error", err.Error()))
 		return nil, err
@@ -228,7 +238,7 @@ func (s *apiRequestService) PostStream(ctx context.Context, body string) (*Strea
 // doAuthenticatedRequest handles the common pattern of making an authenticated
 // API request. It trusts the deadline already set on ctx by the calling service
 // layer — no additional timeout is applied here.
-func (s *apiRequestService) doAuthenticatedRequest(ctx context.Context, method, body string) (*Response, error) {
+func (s *apiRequestService) doAuthenticatedRequest(ctx context.Context, method string, body []byte) (*Response, error) {
 	if err := ctx.Err(); err != nil {
 		s.logger.ErrorContext(ctx, "context already cancelled before function", slog.String("error", err.Error()))
 		return nil, err
@@ -255,7 +265,11 @@ func (s *apiRequestService) doAuthenticatedRequest(ctx context.Context, method, 
 	// When accessMode is unset, no header is sent and the server-side router
 	// forwards the request to whichever cluster member can handle it.
 	if s.useLegacyHTTP {
-		switch s.accessMode {
+		mode := s.accessMode
+		if m, ok := ctx.Value(accessModeKey{}).(AccessMode); ok {
+			mode = m // per-call override
+		}
+		switch mode {
 		case AccessModeRead:
 			headers["Access-Mode"] = "READ"
 		case AccessModeWrite:

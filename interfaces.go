@@ -11,12 +11,12 @@ import (
 type QueryService interface {
 	// Execute runs a Cypher statement and returns the raw decoded response.
 	// Use WithTransformer to map the result to a typed value.
-	Execute(ctx context.Context, qry string, qryParams map[string]any) (*Response, error)
+	Execute(ctx context.Context, qry string, qryParams map[string]any, opts ...CallOption) (*Response, error)
 	// ExecuteStream runs a Cypher statement and returns a StreamResult that
 	// decodes records incrementally as they arrive over the wire, instead of
 	// buffering the entire response. Requires the client to be constructed
 	// with WithStreamingSupport(true).
-	ExecuteStream(ctx context.Context, qry string, qryParams map[string]any) (*StreamResult, error)
+	ExecuteStream(ctx context.Context, qry string, qryParams map[string]any, opts ...CallOption) (*StreamResult, error)
 }
 
 // Compile-time interface compliance checks
@@ -36,6 +36,10 @@ var (
 // Fields holds the ordered column names; Rows holds one []any per row where
 // each element is a fully decoded Go value (see DecodeValue for the type mapping).
 type Response = decode.Response
+
+// Counters reports how a query changed the database. It is populated when the
+// call used WithIncludeCounters.
+type Counters = decode.Counters
 
 // Notification is an advisory message from Neo4j about the executed statement.
 // Notifications are not errors — the query succeeded and rows are returned alongside them.

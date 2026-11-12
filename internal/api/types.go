@@ -110,11 +110,11 @@ type DiscoveryResponse struct {
 // RequestService defines the interface for making authenticated API requests.
 // This is the middle layer that handles authentication and common API patterns.
 type RequestService interface {
-	Post(ctx context.Context, body string) (*Response, error)
+	Post(ctx context.Context, body []byte) (*Response, error)
 	// PostStream performs an authenticated POST request requesting the Query
 	// API's streaming (JSON Lines) response format. The caller must close the
 	// returned StreamResponse's Body.
-	PostStream(ctx context.Context, body string) (*StreamResponse, error)
+	PostStream(ctx context.Context, body []byte) (*StreamResponse, error)
 	// Discover calls the Neo4j discovery endpoint (GET /) and returns server metadata,
 	// including the neo4j_version field used by CheckVersion.
 	Discover(ctx context.Context) (*DiscoveryResponse, error)

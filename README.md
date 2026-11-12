@@ -20,6 +20,7 @@ result, err := query.WithTransformer(client.Query, ctx,
 - [Access Mode](#access-mode)
 - [Streaming](#streaming)
 - [Context and Timeouts](#context-and-timeouts)
+- [Per-Call Options](#per-call-options)
 - [Executing Queries](#executing-queries)
 - [Transformers](#transformers)
   - [EagerResultTransformer](#eagerresulttransformer)
@@ -115,7 +116,9 @@ client, err := query.NewClient(
 | `WithBaseURL(url)` | `http://localhost:7474` | Base URL of the Neo4j server |
 | `WithDatabase(db)` | — | Target database name |
 | `WithTimeout(d)` | 120s | Per-request timeout |
-| `WithMaxRetry(n)` | 3 | Maximum retry attempts on network errors and retryable `Neo.TransientError.*` failures (e.g. deadlocks); `0` disables retries |
+| `WithMaxRetry(n)` | 3 | Default retries for both network errors and retryable `Neo.TransientError.*` failures (e.g. deadlocks); `0` disables retries. See [Per-Call Options](#per-call-options) |
+| `WithMaxNetworkRetry(n)` | 3 | Set only the network-error retries |
+| `WithMaxTransientRetry(n)` | 3 | Set only the `Neo.TransientError.*` retries |
 | `WithLogger(l)` | warn to stderr | Structured `*slog.Logger` |
 | `WithHTTPClient(c)` | default transport | Custom `*http.Client` (for mTLS, proxies, etc.) |
 | `WithUserAgent(ua)` | `query-go-sdk/<version>` | Value of the `User-Agent` header |
@@ -268,6 +271,50 @@ _, err := client.Query.Execute(ctx, "MATCH (n) RETURN n", nil)
 if errors.Is(err, context.Canceled) {
     log.Println("query cancelled")
 }
+```
+
+---
+
+## Per-Call Options
+
+`Execute`, `ExecuteStream` and `WithTransformer` accept optional `query.CallOption` values that apply to that call only:
+
+| Option | Description |
+|---|---|
+| `WithCallTimeout(d)` | Overrides `WithTimeout` for this call (for `ExecuteStream` it bounds the whole stream) |
+| `WithRetry(RetryPolicy{Transient, Network})` | Overrides the client's retry counts for this call; the zero value disables retries |
+| `WithCallAccessMode(m)` | Overrides `WithAccessMode` for this call |
+| `WithIncludeCounters()` | Returns update counters in `Response.Counters`, `EagerResult.Counters` and `StreamSummary.Counters` |
+| `WithTxMetadata(map)` | Attaches metadata to the transaction (visible in `query.log` and `SHOW TRANSACTIONS`) |
+| `WithMaxExecutionTime(d)` | Server-side transaction timeout, rounded up to whole seconds |
+| `WithBookmarks(...)` | Makes the server wait for the given bookmarks before running the statement |
+| `WithNotificationsFilter(f)` | Restricts the notifications the server raises |
+
+`WithIncludeCounters`, `WithTxMetadata`, `WithMaxExecutionTime`, `WithBookmarks` and `WithNotificationsFilter` need the Query API v2 flavor; with `FlavorLegacyHTTP` the call returns an error. The server-version requirements are noted in each option's doc comment.
+
+```go
+resp, err := client.Query.Execute(ctx, "CREATE (n:Person {name: $name})", params,
+    query.WithCallTimeout(5*time.Minute),
+    query.WithIncludeCounters(),
+    query.WithTxMetadata(map[string]any{"job": "import"}),
+)
+fmt.Println(resp.Counters.NodesCreated)
+```
+
+### Retries
+
+Two kinds of failure are retried, and they have different safety properties, so they are counted separately (`RetryPolicy.Transient` and `RetryPolicy.Network`; client defaults via `WithMaxRetry`, `WithMaxTransientRetry` and `WithMaxNetworkRetry`):
+
+- **Transient** (`Neo.TransientError.*`, e.g. a deadlock): the server rolled the request back, so repeating a plain statement is safe. `Neo.TransientError.Transaction.Terminated` and `...LockClientStopped` are never retried.
+- **Network** (no response received): the outcome is ambiguous — the server may have committed — so repeating a non-idempotent write such as `CREATE` can duplicate it. Set `WithMaxNetworkRetry(0)` if your statements are not idempotent.
+
+Statements containing `CALL { } IN TRANSACTIONS` are **not retried by default** (neither kind): batches before a failure have already committed, so a retry would repeat them. Pass `WithRetry` explicitly to opt in. Detection is a text match, so it can also trigger on the words appearing in a comment or string, which only turns retries off.
+
+```go
+// This statement is safe to repeat on deadlock, but not on a dropped connection.
+_, err := client.Query.Execute(ctx, cypher, params,
+    query.WithRetry(query.RetryPolicy{Transient: 5, Network: 0}),
+)
 ```
 
 ---
