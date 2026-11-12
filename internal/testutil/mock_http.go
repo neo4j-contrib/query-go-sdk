@@ -62,7 +62,7 @@ func NewMockHTTPService() *MockHTTPService {
 
 // Get implements httpclient.HTTPService.
 func (m *MockHTTPService) Get(_ context.Context, url string, headers map[string]string) (*httpclient.HTTPResponse, error) {
-	m.record("GET", url, headers, "")
+	m.record("GET", url, headers, nil)
 	if m.GetResponse != nil || m.GetError != nil {
 		return m.GetResponse, m.GetError
 	}
@@ -70,7 +70,7 @@ func (m *MockHTTPService) Get(_ context.Context, url string, headers map[string]
 }
 
 // Post implements httpclient.HTTPService.
-func (m *MockHTTPService) Post(_ context.Context, url string, headers map[string]string, body string) (*httpclient.HTTPResponse, error) {
+func (m *MockHTTPService) Post(_ context.Context, url string, headers map[string]string, body []byte) (*httpclient.HTTPResponse, error) {
 	m.record("POST", url, headers, body)
 	if m.PostResponse != nil || m.PostError != nil {
 		return m.PostResponse, m.PostError
@@ -79,7 +79,7 @@ func (m *MockHTTPService) Post(_ context.Context, url string, headers map[string
 }
 
 // Put implements httpclient.HTTPService.
-func (m *MockHTTPService) Put(_ context.Context, url string, headers map[string]string, body string) (*httpclient.HTTPResponse, error) {
+func (m *MockHTTPService) Put(_ context.Context, url string, headers map[string]string, body []byte) (*httpclient.HTTPResponse, error) {
 	m.record("PUT", url, headers, body)
 	if m.PutResponse != nil || m.PutError != nil {
 		return m.PutResponse, m.PutError
@@ -88,7 +88,7 @@ func (m *MockHTTPService) Put(_ context.Context, url string, headers map[string]
 }
 
 // Patch implements httpclient.HTTPService.
-func (m *MockHTTPService) Patch(_ context.Context, url string, headers map[string]string, body string) (*httpclient.HTTPResponse, error) {
+func (m *MockHTTPService) Patch(_ context.Context, url string, headers map[string]string, body []byte) (*httpclient.HTTPResponse, error) {
 	m.record("PATCH", url, headers, body)
 	if m.PatchResponse != nil || m.PatchError != nil {
 		return m.PatchResponse, m.PatchError
@@ -98,7 +98,7 @@ func (m *MockHTTPService) Patch(_ context.Context, url string, headers map[strin
 
 // Delete implements httpclient.HTTPService.
 func (m *MockHTTPService) Delete(_ context.Context, url string, headers map[string]string) (*httpclient.HTTPResponse, error) {
-	m.record("DELETE", url, headers, "")
+	m.record("DELETE", url, headers, nil)
 	if m.DeleteResponse != nil || m.DeleteError != nil {
 		return m.DeleteResponse, m.DeleteError
 	}
@@ -106,7 +106,7 @@ func (m *MockHTTPService) Delete(_ context.Context, url string, headers map[stri
 }
 
 // PostStream implements httpclient.HTTPService.
-func (m *MockHTTPService) PostStream(_ context.Context, url string, headers map[string]string, body string) (*httpclient.StreamResponse, error) {
+func (m *MockHTTPService) PostStream(_ context.Context, url string, headers map[string]string, body []byte) (*httpclient.StreamResponse, error) {
 	m.record("POSTSTREAM", url, headers, body)
 	return m.PostStreamResponse, m.PostStreamError
 }
@@ -114,17 +114,17 @@ func (m *MockHTTPService) PostStream(_ context.Context, url string, headers map[
 // Close implements httpclient.HTTPService. It is a no-op in the mock.
 func (m *MockHTTPService) Close() {}
 
-func (m *MockHTTPService) record(method, url string, headers map[string]string, body string) {
+func (m *MockHTTPService) record(method, url string, headers map[string]string, body []byte) {
 	m.LastMethod = method
 	m.LastURL = url
 	m.LastHeaders = headers
-	m.LastBody = body
+	m.LastBody = string(body)
 	m.CallCount++
 	m.CallHistory = append(m.CallHistory, MockHTTPCall{
 		Method:  method,
 		URL:     url,
 		Headers: headers,
-		Body:    body,
+		Body:    string(body),
 	})
 }
 

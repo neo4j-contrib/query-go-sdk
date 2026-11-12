@@ -9,12 +9,30 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 )
+
+type (
+	retryOverrideKey struct{}
+	retryBudgetKey   struct{}
+)
+
+// retryBudget tracks network retries consumed by one request.
+type retryBudget struct{ max, used int }
+
+// WithMaxNetworkRetries returns a context that overrides, for requests made
+// with it, how many times a network-level failure (no response received) is
+// retried. 0 disables network retries for the call. Negative n is treated as 0.
+func WithMaxNetworkRetries(ctx context.Context, n int) context.Context {
+	if n < 0 {
+		n = 0
+	}
+	return context.WithValue(ctx, retryOverrideKey{}, n)
+}
 
 // networkOnlyRetryPolicy retries only on connection-level errors (e.g. refused,
 // reset, DNS failure). HTTP responses — including 5xx — are returned as-is so
@@ -24,9 +42,16 @@ func networkOnlyRetryPolicy(ctx context.Context, resp *http.Response, err error)
 	if ctx.Err() != nil {
 		return false, ctx.Err()
 	}
-	// Network-level error with no HTTP response — retry.
+	// Network-level error with no HTTP response — retry while the request's
+	// budget lasts. The policy is consulted once per failed attempt, so the
+	// budget counts retries.
 	if err != nil && resp == nil {
-		return true, nil
+		b, ok := ctx.Value(retryBudgetKey{}).(*retryBudget)
+		if !ok {
+			return true, nil // no budget attached: defer to retryablehttp's RetryMax
+		}
+		b.used++
+		return b.used <= b.max, nil
 	}
 	// Any actual HTTP response, regardless of status code — do not retry.
 	// Status-code interpretation is the responsibility of the api layer.
@@ -43,7 +68,10 @@ func networkOnlyRetryPolicy(ctx context.Context, resp *http.Response, err error)
 // constructs a default client with production-suitable connection pool settings.
 func NewHTTPService(timeout time.Duration, maxRetry int, maxResponse int, logger *slog.Logger, customClient *http.Client) HTTPService {
 	retryClient := retryablehttp.NewClient()
-	retryClient.RetryMax = maxRetry
+	// The per-request budget in networkOnlyRetryPolicy decides when to stop;
+	// RetryMax is only a ceiling so a per-call override above the client
+	// default is honoured.
+	retryClient.RetryMax = math.MaxInt32
 	retryClient.RetryWaitMin = 1 * time.Second
 	retryClient.RetryWaitMax = 5 * time.Second
 	retryClient.Logger = nil // suppress retryablehttp's own logger; we use slog
@@ -79,6 +107,7 @@ func NewHTTPService(timeout time.Duration, maxRetry int, maxResponse int, logger
 		client:          retryClient,
 		logger:          logger,
 		maxResponseSize: maxResponse,
+		defaultRetry:    maxRetry,
 	}
 }
 
@@ -92,17 +121,17 @@ func (s *httpService) Close() {
 
 // Get performs an HTTP GET request with the provided headers.
 func (s *httpService) Get(ctx context.Context, url string, headers map[string]string) (*HTTPResponse, error) {
-	return s.doRequest(ctx, http.MethodGet, url, headers, "")
+	return s.doRequest(ctx, http.MethodGet, url, headers, nil)
 }
 
 // Post performs an HTTP POST request with the provided headers and body.
-func (s *httpService) Post(ctx context.Context, url string, headers map[string]string, body string) (*HTTPResponse, error) {
+func (s *httpService) Post(ctx context.Context, url string, headers map[string]string, body []byte) (*HTTPResponse, error) {
 	return s.doRequest(ctx, http.MethodPost, url, headers, body)
 }
 
 // PostStream performs an HTTP POST request and returns the response with its
 // body unread, for incremental (streaming) consumption by the caller.
-func (s *httpService) PostStream(ctx context.Context, url string, headers map[string]string, body string) (*StreamResponse, error) {
+func (s *httpService) PostStream(ctx context.Context, url string, headers map[string]string, body []byte) (*StreamResponse, error) {
 	resp, err := s.executeRequest(ctx, http.MethodPost, url, headers, body)
 	if err != nil {
 		return nil, err
@@ -116,29 +145,39 @@ func (s *httpService) PostStream(ctx context.Context, url string, headers map[st
 }
 
 // Put performs an HTTP PUT request with the provided headers and body.
-func (s *httpService) Put(ctx context.Context, url string, headers map[string]string, body string) (*HTTPResponse, error) {
+func (s *httpService) Put(ctx context.Context, url string, headers map[string]string, body []byte) (*HTTPResponse, error) {
 	return s.doRequest(ctx, http.MethodPut, url, headers, body)
 }
 
 // Patch performs an HTTP PATCH request with the provided headers and body.
-func (s *httpService) Patch(ctx context.Context, url string, headers map[string]string, body string) (*HTTPResponse, error) {
+func (s *httpService) Patch(ctx context.Context, url string, headers map[string]string, body []byte) (*HTTPResponse, error) {
 	return s.doRequest(ctx, http.MethodPatch, url, headers, body)
 }
 
 // Delete performs an HTTP DELETE request with the provided headers.
 func (s *httpService) Delete(ctx context.Context, url string, headers map[string]string) (*HTTPResponse, error) {
-	return s.doRequest(ctx, http.MethodDelete, url, headers, "")
+	return s.doRequest(ctx, http.MethodDelete, url, headers, nil)
 }
 
 // executeRequest builds the request, attaches headers and the caller's
 // context, and executes it via the retryable client. The caller owns
 // resp.Body and must close it. Shared by doRequest (which buffers the body)
 // and PostStream (which hands the live body to the caller).
-func (s *httpService) executeRequest(ctx context.Context, method, url string, headers map[string]string, body string) (*http.Response, error) {
-	var bodyReader io.Reader
-	if body != "" {
-		bodyReader = strings.NewReader(body)
+func (s *httpService) executeRequest(ctx context.Context, method, url string, headers map[string]string, body []byte) (*http.Response, error) {
+	// Passing the []byte straight to retryablehttp avoids copying a (possibly
+	// multi-MB) body and lets it be replayed on each retry attempt.
+	var bodyReader any
+	if len(body) > 0 {
+		bodyReader = body
 	}
+
+	// Each request gets its own network-retry budget: the per-call override
+	// from WithMaxNetworkRetries if present, else the client default.
+	budget := &retryBudget{max: s.defaultRetry}
+	if n, ok := ctx.Value(retryOverrideKey{}).(int); ok {
+		budget.max = n
+	}
+	ctx = context.WithValue(ctx, retryBudgetKey{}, budget)
 
 	req, err := retryablehttp.NewRequest(method, url, bodyReader)
 	if err != nil {
@@ -160,7 +199,7 @@ func (s *httpService) executeRequest(ctx context.Context, method, url string, he
 
 // doRequest is the shared implementation for all buffered HTTP methods. It
 // executes the request and reads the response body up to DefaultMaxResponseSize.
-func (s *httpService) doRequest(ctx context.Context, method, url string, headers map[string]string, body string) (*HTTPResponse, error) {
+func (s *httpService) doRequest(ctx context.Context, method, url string, headers map[string]string, body []byte) (*HTTPResponse, error) {
 	resp, err := s.executeRequest(ctx, method, url, headers, body)
 	if err != nil {
 		return nil, err

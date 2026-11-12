@@ -34,6 +34,9 @@ type Response struct {
 	ResultAvailableAfter time.Duration
 	// ResultConsumedAfter is how long the result took to be fully consumed.
 	ResultConsumedAfter time.Duration
+	// Counters describes how the query changed the database. It is nil unless
+	// the request set includeCounters (see WithIncludeCounters).
+	Counters *Counters
 }
 
 // Warnings returns only the notifications with severity "WARNING".
@@ -74,6 +77,29 @@ type StreamSummary struct {
 	QueryType            string
 	ResultAvailableAfter time.Duration
 	ResultConsumedAfter  time.Duration
+	// Counters describes how the query changed the database. It is nil unless
+	// the request set includeCounters.
+	Counters *Counters
+}
+
+// Counters reports how a query changed the database, as returned by the
+// Query API when the request sets includeCounters. See
+// https://neo4j.com/docs/query-api/current/query-counters/.
+type Counters struct {
+	ContainsUpdates       bool  `json:"containsUpdates"`
+	NodesCreated          int64 `json:"nodesCreated"`
+	NodesDeleted          int64 `json:"nodesDeleted"`
+	PropertiesSet         int64 `json:"propertiesSet"`
+	RelationshipsCreated  int64 `json:"relationshipsCreated"`
+	RelationshipsDeleted  int64 `json:"relationshipsDeleted"`
+	LabelsAdded           int64 `json:"labelsAdded"`
+	LabelsRemoved         int64 `json:"labelsRemoved"`
+	IndexesAdded          int64 `json:"indexesAdded"`
+	IndexesRemoved        int64 `json:"indexesRemoved"`
+	ConstraintsAdded      int64 `json:"constraintsAdded"`
+	ConstraintsRemoved    int64 `json:"constraintsRemoved"`
+	ContainsSystemUpdates bool  `json:"containsSystemUpdates"`
+	SystemUpdates         int64 `json:"systemUpdates"`
 }
 
 // Warnings returns only the notifications with severity "WARNING".

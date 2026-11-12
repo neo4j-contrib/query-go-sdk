@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -126,7 +127,7 @@ func TestPost_BodyForwarded(t *testing.T) {
 	defer srv.Close()
 
 	svc := newTestService()
-	resp, err := svc.Post(context.Background(), srv.URL, nil, expectedBody)
+	resp, err := svc.Post(context.Background(), srv.URL, nil, []byte(expectedBody))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -146,7 +147,7 @@ func TestPost_EmptyBody(t *testing.T) {
 	defer srv.Close()
 
 	svc := newTestService()
-	_, err := svc.Post(context.Background(), srv.URL, nil, "")
+	_, err := svc.Post(context.Background(), srv.URL, nil, []byte(""))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -170,7 +171,7 @@ func TestPostStream_BodyForwarded(t *testing.T) {
 	defer srv.Close()
 
 	svc := newTestService()
-	resp, err := svc.PostStream(context.Background(), srv.URL, nil, expectedBody)
+	resp, err := svc.PostStream(context.Background(), srv.URL, nil, []byte(expectedBody))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -204,7 +205,7 @@ func TestPostStream_BodyIsLiveNotBuffered(t *testing.T) {
 	defer srv.Close()
 
 	svc := newTestService()
-	resp, err := svc.PostStream(context.Background(), srv.URL, nil, "")
+	resp, err := svc.PostStream(context.Background(), srv.URL, nil, []byte(""))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -227,7 +228,7 @@ func TestPostStream_ExceedsMaxResponseSize(t *testing.T) {
 	defer srv.Close()
 
 	svc := NewHTTPService(5*time.Second, 0, 10, testLogger(), nil) // 10-byte cap
-	resp, err := svc.PostStream(context.Background(), srv.URL, nil, "")
+	resp, err := svc.PostStream(context.Background(), srv.URL, nil, []byte(""))
 	if err != nil {
 		t.Fatalf("unexpected error from PostStream itself: %v", err)
 	}
@@ -254,7 +255,7 @@ func TestPut_MethodForwarded(t *testing.T) {
 	defer srv.Close()
 
 	svc := newTestService()
-	_, err := svc.Put(context.Background(), srv.URL, nil, `{"memory":"16GB"}`)
+	_, err := svc.Put(context.Background(), srv.URL, nil, []byte(`{"memory":"16GB"}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -270,7 +271,7 @@ func TestPatch_MethodForwarded(t *testing.T) {
 	defer srv.Close()
 
 	svc := newTestService()
-	_, err := svc.Patch(context.Background(), srv.URL, nil, `{"name":"updated"}`)
+	_, err := svc.Patch(context.Background(), srv.URL, nil, []byte(`{"name":"updated"}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -371,5 +372,101 @@ func TestGet_InvalidURL(t *testing.T) {
 	_, err := svc.Get(context.Background(), "://bad-url", nil)
 	if err == nil {
 		t.Fatal("expected error for invalid URL")
+	}
+}
+
+// ─── Network retries ──────────────────────────────────────────────────────────
+
+// dropServer closes every connection without responding, counting attempts.
+func dropServer(t *testing.T) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		conn, _, err := w.(http.Hijacker).Hijack()
+		if err == nil {
+			_ = conn.Close()
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &hits
+}
+
+func newRetryTestService(defaultRetry int) HTTPService {
+	svc := NewHTTPService(5*time.Second, defaultRetry, 1<<20, testLogger(), nil).(*httpService)
+	svc.client.RetryWaitMin = time.Millisecond
+	svc.client.RetryWaitMax = time.Millisecond
+	return svc
+}
+
+func TestNetworkRetry_UsesClientDefault(t *testing.T) {
+	srv, hits := dropServer(t)
+	svc := newRetryTestService(2)
+
+	if _, err := svc.Post(context.Background(), srv.URL, nil, []byte(`{}`)); err == nil {
+		t.Fatal("expected error")
+	}
+	if got := hits.Load(); got != 3 { // 1 attempt + 2 retries
+		t.Errorf("attempts = %d, want 3", got)
+	}
+}
+
+func TestNetworkRetry_ZeroDisables(t *testing.T) {
+	srv, hits := dropServer(t)
+	svc := newRetryTestService(0)
+
+	if _, err := svc.Post(context.Background(), srv.URL, nil, []byte(`{}`)); err == nil {
+		t.Fatal("expected error")
+	}
+	if got := hits.Load(); got != 1 {
+		t.Errorf("attempts = %d, want 1", got)
+	}
+}
+
+func TestNetworkRetry_PerCallOverride(t *testing.T) {
+	srv, hits := dropServer(t)
+	svc := newRetryTestService(3)
+
+	// Override down to zero.
+	ctx := WithMaxNetworkRetries(context.Background(), 0)
+	if _, err := svc.Post(ctx, srv.URL, nil, []byte(`{}`)); err == nil {
+		t.Fatal("expected error")
+	}
+	if got := hits.Load(); got != 1 {
+		t.Errorf("override 0: attempts = %d, want 1", got)
+	}
+
+	// Override above the client default, and the budget is per request.
+	hits.Store(0)
+	ctx = WithMaxNetworkRetries(context.Background(), 5)
+	if _, err := svc.Post(ctx, srv.URL, nil, []byte(`{}`)); err == nil {
+		t.Fatal("expected error")
+	}
+	if got := hits.Load(); got != 6 {
+		t.Errorf("override 5: attempts = %d, want 6", got)
+	}
+}
+
+func TestNetworkRetry_ReplaysBodyOnRetry(t *testing.T) {
+	var attempts atomic.Int32
+	var lastBody atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		lastBody.Store(string(b))
+		if attempts.Add(1) == 1 {
+			conn, _, _ := w.(http.Hijacker).Hijack()
+			_ = conn.Close()
+			return
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	svc := newRetryTestService(2)
+	if _, err := svc.Post(context.Background(), srv.URL, nil, []byte(`{"a":1}`)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := lastBody.Load(); got != `{"a":1}` {
+		t.Errorf("retried body = %v, want {\"a\":1}", got)
 	}
 }

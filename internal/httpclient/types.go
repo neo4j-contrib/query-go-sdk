@@ -35,14 +35,14 @@ type StreamResponse struct {
 // This is the low-level HTTP layer that handles raw HTTP requests.
 type HTTPService interface {
 	Get(ctx context.Context, url string, headers map[string]string) (*HTTPResponse, error)
-	Post(ctx context.Context, url string, headers map[string]string, body string) (*HTTPResponse, error)
-	Put(ctx context.Context, url string, headers map[string]string, body string) (*HTTPResponse, error)
-	Patch(ctx context.Context, url string, headers map[string]string, body string) (*HTTPResponse, error)
+	Post(ctx context.Context, url string, headers map[string]string, body []byte) (*HTTPResponse, error)
+	Put(ctx context.Context, url string, headers map[string]string, body []byte) (*HTTPResponse, error)
+	Patch(ctx context.Context, url string, headers map[string]string, body []byte) (*HTTPResponse, error)
 	Delete(ctx context.Context, url string, headers map[string]string) (*HTTPResponse, error)
 	// PostStream performs an HTTP POST request and returns the response with
 	// its body unread, letting the caller stream it incrementally instead of
 	// buffering the whole thing in memory. The caller must close Body.
-	PostStream(ctx context.Context, url string, headers map[string]string, body string) (*StreamResponse, error)
+	PostStream(ctx context.Context, url string, headers map[string]string, body []byte) (*StreamResponse, error)
 	// Close releases idle connections held by the underlying HTTP transport.
 	// It should be called when the service is no longer needed.
 	Close()
@@ -57,6 +57,7 @@ type httpService struct {
 	client          *retryablehttp.Client
 	logger          *slog.Logger
 	maxResponseSize int
+	defaultRetry    int // client-level network retries; overridable per request
 }
 
 // Compile-time interface compliance check.

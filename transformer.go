@@ -29,6 +29,9 @@ type EagerResult struct {
 	ResultAvailableAfter time.Duration
 	// ResultConsumedAfter is how long the result took to be fully consumed.
 	ResultConsumedAfter time.Duration
+	// Counters describes how the query changed the database; nil unless
+	// WithIncludeCounters was set for the call.
+	Counters *decode.Counters
 }
 
 // HasWarnings returns true if any WARNING severity notifications are present.
@@ -109,6 +112,7 @@ var EagerResultTransformer ResultTransformer[*EagerResult] = func(resp *decode.R
 		QueryType:            resp.QueryType,
 		ResultAvailableAfter: resp.ResultAvailableAfter,
 		ResultConsumedAfter:  resp.ResultConsumedAfter,
+		Counters:             resp.Counters,
 	}, nil
 }
 
@@ -188,10 +192,13 @@ func Single[T any](fn func(*Record) (T, error)) ResultTransformer[T] {
 //
 // Because it accepts QueryService (the interface), it works against any
 // implementation including test doubles.
-func WithTransformer[T any](svc QueryService, ctx context.Context, cypher string, params map[string]any, transformer ResultTransformer[T]) (T, error) {
+//
+// Optional CallOptions (timeout, retry, bookmarks, ...) are passed through to
+// svc.Execute.
+func WithTransformer[T any](svc QueryService, ctx context.Context, cypher string, params map[string]any, transformer ResultTransformer[T], opts ...CallOption) (T, error) {
 	var zero T
 
-	resp, err := svc.Execute(ctx, cypher, params)
+	resp, err := svc.Execute(ctx, cypher, params, opts...)
 	if err != nil {
 		return zero, err
 	}

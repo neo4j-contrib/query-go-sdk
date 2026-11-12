@@ -116,7 +116,7 @@ func TestAPIService_URLConstruction(t *testing.T) {
 	mock.WithResponse(http.StatusOK, `{"data":{"fields":[],"values":[]},"bookmarks":[]}`)
 	svc := newTestService(mock)
 
-	_, err := svc.Post(context.Background(), `{"statement":"RETURN 1"}`)
+	_, err := svc.Post(context.Background(), []byte(`{"statement":"RETURN 1"}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestAPIService_Post_UsesPostMethod(t *testing.T) {
 	svc := newTestService(mock)
 
 	body := `{"statement":"RETURN 1"}`
-	_, err := svc.Post(context.Background(), body)
+	_, err := svc.Post(context.Background(), []byte(body))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestAPIService_Headers_ContentType(t *testing.T) {
 	mock.WithResponse(http.StatusOK, `{"data":{"fields":[],"values":[]},"bookmarks":[]}`)
 	svc := newTestService(mock)
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestAPIService_Headers_Accept(t *testing.T) {
 	mock.WithResponse(http.StatusOK, `{"data":{"fields":[],"values":[]},"bookmarks":[]}`)
 	svc := newTestService(mock)
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestAPIService_Headers_AccessMode_Unset_NoHeaderSent(t *testing.T) {
 	svc := newTestService(mock)
 	svc.useLegacyHTTP = true
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestAPIService_Headers_AccessMode_Legacy(t *testing.T) {
 			svc.useLegacyHTTP = true
 			svc.accessMode = tt.accessMode
 
-			_, err := svc.Post(context.Background(), `{}`)
+			_, err := svc.Post(context.Background(), []byte(`{}`))
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -229,7 +229,7 @@ func TestAPIService_Headers_AccessMode_QueryV2_NeverSendsHeader(t *testing.T) {
 	svc := newTestService(mock)
 	svc.accessMode = AccessModeRead
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestAPIService_Headers_UserAgent(t *testing.T) {
 	mock.WithResponse(http.StatusOK, `{"data":{"fields":[],"values":[]},"bookmarks":[]}`)
 	svc := newTestService(mock)
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -257,7 +257,7 @@ func TestAPIService_Headers_AuthorizationBasic(t *testing.T) {
 	mock.WithResponse(http.StatusOK, `{"data":{"fields":[],"values":[]},"bookmarks":[]}`)
 	svc := newTestService(mock)
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -277,7 +277,7 @@ func TestAPIService_Headers_AuthorizationBearer(t *testing.T) {
 		logger:     testLogger(),
 	}
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -295,7 +295,7 @@ func TestAPIService_DefaultHeaders_ReachServer(t *testing.T) {
 		"X-Custom":     "custom-value",
 	}
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestAPIService_DefaultHeaders_CannotOverrideProtected(t *testing.T) {
 		"User-Agent":    "evil-agent/1.0",
 	}
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -342,7 +342,7 @@ func TestAPIService_Response_BodyAndStatusReturned(t *testing.T) {
 	mock.WithResponse(http.StatusOK, string(expectedBody))
 	svc := newTestService(mock)
 
-	resp, err := svc.Post(context.Background(), `{"statement":"RETURN 1"}`)
+	resp, err := svc.Post(context.Background(), []byte(`{"statement":"RETURN 1"}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -359,7 +359,7 @@ func TestAPIService_Response_201IsSuccess(t *testing.T) {
 	mock.WithResponse(http.StatusCreated, `{}`)
 	svc := newTestService(mock)
 
-	resp, err := svc.Post(context.Background(), `{}`)
+	resp, err := svc.Post(context.Background(), []byte(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error for 201: %v", err)
 	}
@@ -378,7 +378,7 @@ func TestAPIService_ErrorResponse_400(t *testing.T) {
 	mock.WithResponse(http.StatusBadRequest, body)
 	svc := newTestService(mock)
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err == nil {
 		t.Fatal("expected error for 400 response")
 	}
@@ -396,7 +396,7 @@ func TestAPIService_ErrorResponse_401(t *testing.T) {
 	mock.WithResponse(http.StatusUnauthorized, `{"message":"Invalid credentials"}`)
 	svc := newTestService(mock)
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err == nil {
 		t.Fatal("expected error for 401 response")
 	}
@@ -414,7 +414,7 @@ func TestAPIService_ErrorResponse_404(t *testing.T) {
 	mock.WithResponse(http.StatusNotFound, `{"message":"Not Found"}`)
 	svc := newTestService(mock)
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err == nil {
 		t.Fatal("expected error for 404 response")
 	}
@@ -433,7 +433,7 @@ func TestAPIService_HTTPClientError_Propagated(t *testing.T) {
 	mock.WithError(networkErr)
 	svc := newTestService(mock)
 
-	_, err := svc.Post(context.Background(), `{}`)
+	_, err := svc.Post(context.Background(), []byte(`{}`))
 	if err == nil {
 		t.Fatal("expected error to be propagated")
 	}
@@ -454,7 +454,7 @@ func TestAPIService_CancelledContext_RejectedBeforeHTTPCall(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := svc.Post(ctx, `{}`)
+	_, err := svc.Post(ctx, []byte(`{}`))
 	if err == nil {
 		t.Fatal("expected error for cancelled context")
 	}
@@ -474,7 +474,7 @@ func TestAPIService_ExpiredDeadline_RejectedBeforeHTTPCall(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
 
-	_, err := svc.Post(ctx, `{}`)
+	_, err := svc.Post(ctx, []byte(`{}`))
 	if err == nil {
 		t.Fatal("expected error for expired deadline")
 	}
@@ -709,5 +709,36 @@ func TestAPIService_Discover_MalformedJSON(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unmarshal") {
 		t.Errorf("expected unmarshal error, got: %v", err)
+	}
+}
+
+func TestAPIService_Headers_AccessMode_Legacy_ContextOverride(t *testing.T) {
+	mock := testutil.NewMockHTTPService()
+	mock.WithResponse(http.StatusOK, `{"results":[],"errors":[]}`)
+	svc := newTestService(mock)
+	svc.useLegacyHTTP = true
+	svc.accessMode = AccessModeRead
+
+	ctx := WithAccessMode(context.Background(), AccessModeWrite)
+	if _, err := svc.Post(ctx, []byte(`{}`)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := mock.LastHeaders["Access-Mode"]; got != "WRITE" {
+		t.Errorf("expected per-call Access-Mode WRITE, got %q", got)
+	}
+
+	ctx = WithAccessMode(context.Background(), AccessModeUnset)
+	if _, err := svc.Post(ctx, []byte(`{}`)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := mock.LastHeaders["Access-Mode"]; ok {
+		t.Errorf("expected no Access-Mode header when overridden to unset")
+	}
+}
+
+func TestParseError_CapturesDetailCode(t *testing.T) {
+	err := parseError([]byte(`{"errors":[{"code":"Neo.TransientError.Transaction.DeadlockDetected","message":"x"}]}`), 500)
+	if len(err.Details) != 1 || err.Details[0].Code != "Neo.TransientError.Transaction.DeadlockDetected" {
+		t.Errorf("expected code to be captured, got %+v", err.Details)
 	}
 }

@@ -165,7 +165,8 @@ type QueryAPIClient struct {
 type config struct {
 	baseURL         string            // the base URL of neo4j server
 	apiTimeout      time.Duration     // how long to wait for a response from the Query API endpoint
-	apiRetryMax     int               // the number of retries to attempt
+	apiRetryMax     int               // default network-error retries
+	transientMax    int               // default Neo.TransientError.* retries
 	authHeader      api.Credentials   // The auth header value to use
 	database        string            // database
 	httpClient      *http.Client      // optional custom HTTP client (injected transport)
@@ -202,6 +203,7 @@ func defaultOptions() *options {
 			database:        "neo4j",
 			apiTimeout:      120 * time.Second,
 			apiRetryMax:     3,
+			transientMax:    3,
 			clientVersion:   ClientVersion,
 			userAgent:       "query-go-sdk/" + ClientVersion,
 			maxResponseSize: 10 * 1024 * 1024, // This is 10mb
@@ -253,14 +255,49 @@ func WithTimeout(timeout time.Duration) Option {
 	}
 }
 
-// WithMaxRetry sets the maximum number of retries for failed requests. Defaults to 3.
-// A value of 0 disables retries entirely; negative values are rejected.
+// WithMaxRetry sets the default number of retries for both kinds of failure:
+// network-level errors (no response received) and retryable
+// Neo.TransientError.* responses such as deadlocks. Defaults to 3. A value of
+// 0 disables retries entirely; negative values are rejected.
+//
+// The two kinds have different safety properties, so they can be set
+// separately with WithMaxNetworkRetry and WithMaxTransientRetry, and overridden
+// per call with WithRetry. Retries are disabled by default for statements
+// containing CALL { } IN TRANSACTIONS.
 func WithMaxRetry(maxRetry int) Option {
 	return func(o *options) error {
 		if maxRetry < 0 {
 			return errors.New("max retries must not be negative")
 		}
 		o.config.apiRetryMax = maxRetry
+		o.config.transientMax = maxRetry
+		return nil
+	}
+}
+
+// WithMaxNetworkRetry sets only the default number of retries after a
+// network-level failure with no response. Because the server may have
+// committed before the connection failed, repeating a non-idempotent write
+// can duplicate it; set 0 if your statements are not idempotent.
+func WithMaxNetworkRetry(n int) Option {
+	return func(o *options) error {
+		if n < 0 {
+			return errors.New("max network retries must not be negative")
+		}
+		o.config.apiRetryMax = n
+		return nil
+	}
+}
+
+// WithMaxTransientRetry sets only the default number of retries after a
+// retryable Neo.TransientError.* (e.g. a deadlock). The server rolled the
+// request back, so repeating a plain statement is safe.
+func WithMaxTransientRetry(n int) Option {
+	return func(o *options) error {
+		if n < 0 {
+			return errors.New("max transient retries must not be negative")
+		}
+		o.config.transientMax = n
 		return nil
 	}
 }
@@ -538,14 +575,15 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 	}
 
 	service.Query = &queryService{
-		api:              apiSvc,
-		timeout:          o.config.apiTimeout,
-		logger:           clientLogger.With(slog.String("service", "queryService")),
-		useLegacyHTTP:    o.config.flavor == FlavorLegacyHTTP,
-		accessMode:       o.config.accessMode,
-		streamingEnabled: o.config.streaming,
-		maxResponseSize:  o.config.maxResponseSize,
-		maxRetry:         o.config.apiRetryMax,
+		api:               apiSvc,
+		timeout:           o.config.apiTimeout,
+		logger:            clientLogger.With(slog.String("service", "queryService")),
+		useLegacyHTTP:     o.config.flavor == FlavorLegacyHTTP,
+		accessMode:        o.config.accessMode,
+		streamingEnabled:  o.config.streaming,
+		maxResponseSize:   o.config.maxResponseSize,
+		maxTransientRetry: o.config.transientMax,
+		maxNetworkRetry:   o.config.apiRetryMax,
 	}
 
 	service.logger.Info("Query API client initialized successfully",

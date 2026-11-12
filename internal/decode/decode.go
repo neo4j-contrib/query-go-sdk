@@ -39,6 +39,7 @@ type wireResponse struct {
 	QueryType            string            `json:"queryType,omitempty"`
 	ResultAvailableAfter int64             `json:"resultAvailableAfter,omitempty"`
 	ResultConsumedAfter  int64             `json:"resultConsumedAfter,omitempty"`
+	Counters             *Counters         `json:"counters,omitempty"`
 }
 
 // wirePlanOperator is the raw shape of one node in the query plan tree.
@@ -125,6 +126,7 @@ func DecodeResponse(body []byte) (*Response, error) {
 		QueryType:            wire.QueryType,
 		ResultAvailableAfter: time.Duration(wire.ResultAvailableAfter) * time.Millisecond,
 		ResultConsumedAfter:  time.Duration(wire.ResultConsumedAfter) * time.Millisecond,
+		Counters:             wire.Counters,
 	}
 
 	// Decode query plan if present (EXPLAIN / PROFILE responses).

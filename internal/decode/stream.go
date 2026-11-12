@@ -36,6 +36,7 @@ type wireStreamSummaryBody struct {
 	QueryType            string            `json:"queryType,omitempty"`
 	ResultAvailableAfter int64             `json:"resultAvailableAfter,omitempty"`
 	ResultConsumedAfter  int64             `json:"resultConsumedAfter,omitempty"`
+	Counters             *Counters         `json:"counters,omitempty"`
 }
 
 // ============================================================================
@@ -107,6 +108,7 @@ func DecodeStreamSummary(body json.RawMessage) (*StreamSummary, error) {
 		QueryType:            s.QueryType,
 		ResultAvailableAfter: time.Duration(s.ResultAvailableAfter) * time.Millisecond,
 		ResultConsumedAfter:  time.Duration(s.ResultConsumedAfter) * time.Millisecond,
+		Counters:             s.Counters,
 	}
 
 	if s.QueryPlan != nil {

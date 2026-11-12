@@ -655,3 +655,38 @@ func TestParsePoint_Invalid(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeResponse_Counters(t *testing.T) {
+	body := []byte(`{"data":{"fields":["n"],"values":[]},"counters":{"containsUpdates":true,"nodesCreated":2,"propertiesSet":3,"labelsAdded":1,"systemUpdates":4},"bookmarks":[]}`)
+	resp, err := DecodeResponse(body)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Counters == nil {
+		t.Fatal("expected counters")
+	}
+	c := resp.Counters
+	if !c.ContainsUpdates || c.NodesCreated != 2 || c.PropertiesSet != 3 || c.LabelsAdded != 1 || c.SystemUpdates != 4 {
+		t.Errorf("unexpected counters: %+v", c)
+	}
+}
+
+func TestDecodeResponse_NoCountersIsNil(t *testing.T) {
+	resp, err := DecodeResponse([]byte(`{"data":{"fields":[],"values":[]},"bookmarks":[]}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Counters != nil {
+		t.Errorf("expected nil counters, got %+v", resp.Counters)
+	}
+}
+
+func TestDecodeStreamSummary_Counters(t *testing.T) {
+	s, err := DecodeStreamSummary([]byte(`{"counters":{"nodesDeleted":5,"containsUpdates":true}}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s.Counters == nil || s.Counters.NodesDeleted != 5 || !s.Counters.ContainsUpdates {
+		t.Errorf("unexpected counters: %+v", s.Counters)
+	}
+}

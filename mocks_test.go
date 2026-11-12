@@ -60,15 +60,15 @@ type contextCheckMock struct {
 // mockRequestService — simple mock, does not check context
 // ============================================================================
 
-func (m *mockRequestService) Post(_ context.Context, body string) (*api.Response, error) {
+func (m *mockRequestService) Post(_ context.Context, body []byte) (*api.Response, error) {
 	m.lastMethod = "POST"
-	m.lastBody = body
+	m.lastBody = string(body)
 	return m.response, m.err
 }
 
-func (m *mockRequestService) PostStream(_ context.Context, body string) (*api.StreamResponse, error) {
+func (m *mockRequestService) PostStream(_ context.Context, body []byte) (*api.StreamResponse, error) {
 	m.lastMethod = "POSTSTREAM"
-	m.lastBody = body
+	m.lastBody = string(body)
 	return m.streamResponse, m.streamErr
 }
 
@@ -91,10 +91,10 @@ func newStreamResponse(lines ...string) *api.StreamResponse {
 // mockRequestServiceWithDelay — respects context cancellation, simulates slow APIs
 // ============================================================================
 
-func (m *mockRequestServiceWithDelay) Post(ctx context.Context, body string) (*api.Response, error) {
+func (m *mockRequestServiceWithDelay) Post(ctx context.Context, body []byte) (*api.Response, error) {
 	m.mu.Lock()
 	m.lastMethod = "POST"
-	m.lastBody = body
+	m.lastBody = string(body)
 	m.callCount++
 	m.mu.Unlock()
 	return m.executeWithDelay(ctx)
@@ -114,10 +114,10 @@ func (m *mockRequestServiceWithDelay) executeWithDelay(ctx context.Context) (*ap
 	return m.response, m.err
 }
 
-func (m *mockRequestServiceWithDelay) PostStream(ctx context.Context, body string) (*api.StreamResponse, error) {
+func (m *mockRequestServiceWithDelay) PostStream(ctx context.Context, body []byte) (*api.StreamResponse, error) {
 	m.mu.Lock()
 	m.lastMethod = "POSTSTREAM"
-	m.lastBody = body
+	m.lastBody = string(body)
 	m.callCount++
 	m.mu.Unlock()
 	if m.delay > 0 {
@@ -143,7 +143,7 @@ func (m *mockRequestServiceWithDelay) Close() {}
 // contextCheckMock — invokes OnPost callback for context propagation tests
 // ============================================================================
 
-func (m *contextCheckMock) Post(ctx context.Context, _ string) (*api.Response, error) {
+func (m *contextCheckMock) Post(ctx context.Context, _ []byte) (*api.Response, error) {
 	m.callCount++
 	if m.OnPost != nil {
 		m.OnPost(ctx)
@@ -154,7 +154,7 @@ func (m *contextCheckMock) Post(ctx context.Context, _ string) (*api.Response, e
 	return m.response, m.err
 }
 
-func (m *contextCheckMock) PostStream(ctx context.Context, _ string) (*api.StreamResponse, error) {
+func (m *contextCheckMock) PostStream(ctx context.Context, _ []byte) (*api.StreamResponse, error) {
 	m.callCount++
 	if m.OnPost != nil {
 		m.OnPost(ctx)
