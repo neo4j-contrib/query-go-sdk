@@ -1,3 +1,0 @@
-kind: Fixed
-body: Expected query errors (Neo4j errors and HTTP API errors that the caller receives) are no longer logged at ERROR, and the request body is no longer copied to a string before sending
-time: 2026-11-12T15:04:00.000000+00:00

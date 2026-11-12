@@ -1,3 +1,0 @@
-kind: Added
-body: Per-call options on Execute, ExecuteStream and WithTransformer - WithCallTimeout, WithRetry, WithCallAccessMode, WithIncludeCounters, WithTxMetadata, WithMaxExecutionTime, WithBookmarks and WithNotificationsFilter
-time: 2026-11-12T15:00:00.000000+00:00
