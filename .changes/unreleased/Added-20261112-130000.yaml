@@ -1,0 +1,3 @@
+kind: Added
+body: Retry statements that fail with a retryable Neo.TransientError.* (such as a deadlock) up to the WithMaxRetry count (default 3) with exponential backoff; Transaction.Terminated and Transaction.LockClientStopped are never retried, and WithMaxRetry(0) disables this. Streaming queries are retried only before the first record is delivered.
+time: 2026-11-12T13:00:00.000000+00:00

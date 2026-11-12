@@ -33,6 +33,7 @@ type Error struct {
 
 // ErrorDetail represents individual error details.
 type ErrorDetail struct {
+	Code    string `json:"code,omitempty"` // Neo4j status code, e.g. "Neo.TransientError.Transaction.DeadlockDetected"
 	Message string `json:"message"`
 	Reason  string `json:"reason,omitempty"`
 	Field   string `json:"field,omitempty"`

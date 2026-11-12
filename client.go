@@ -545,6 +545,7 @@ func NewClient(opts ...Option) (*QueryAPIClient, error) {
 		accessMode:       o.config.accessMode,
 		streamingEnabled: o.config.streaming,
 		maxResponseSize:  o.config.maxResponseSize,
+		maxRetry:         o.config.apiRetryMax,
 	}
 
 	service.logger.Info("Query API client initialized successfully",

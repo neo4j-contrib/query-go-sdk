@@ -115,7 +115,7 @@ client, err := query.NewClient(
 | `WithBaseURL(url)` | `http://localhost:7474` | Base URL of the Neo4j server |
 | `WithDatabase(db)` | — | Target database name |
 | `WithTimeout(d)` | 120s | Per-request timeout |
-| `WithMaxRetry(n)` | 3 | Maximum retry attempts on transient failure; `0` disables retries |
+| `WithMaxRetry(n)` | 3 | Maximum retry attempts on network errors and retryable `Neo.TransientError.*` failures (e.g. deadlocks); `0` disables retries |
 | `WithLogger(l)` | warn to stderr | Structured `*slog.Logger` |
 | `WithHTTPClient(c)` | default transport | Custom `*http.Client` (for mTLS, proxies, etc.) |
 | `WithUserAgent(ua)` | `query-go-sdk/<version>` | Value of the `User-Agent` header |

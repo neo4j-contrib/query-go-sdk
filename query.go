@@ -32,6 +32,8 @@ type queryService struct {
 	accessMode       AccessMode
 	streamingEnabled bool
 	maxResponseSize  int
+	maxRetry         int           // retries after the first attempt on a retryable Neo.TransientError.*; 0 disables
+	retryBackoff     time.Duration // base delay between transient retries; defaults to defaultTransientBackoff
 }
 
 // queryRequest is the JSON body sent to the Query API v2.
@@ -71,11 +73,34 @@ func accessModeValue(mode AccessMode) string {
 // ============================================================================
 
 // Execute runs a Cypher statement and returns the decoded response.
+//
+// If the server rejects the statement with a retryable Neo.TransientError.*
+// (for example a deadlock), the statement is re-run up to the configured
+// WithMaxRetry count with exponential backoff. The transaction was rolled
+// back by the server, so re-running is safe. All attempts share the single
+// WithTimeout deadline.
 func (q *queryService) Execute(ctx context.Context, qry string, qryParams map[string]any) (*Response, error) {
 	ctx, cancel := context.WithTimeout(ctx, q.timeout)
 	defer cancel()
 
 	q.logger.DebugContext(ctx, "running query")
+
+	var (
+		result *Response
+		err    error
+	)
+	for attempt := 0; ; attempt++ {
+		result, err = q.executeOnce(ctx, qry, qryParams)
+		if err == nil || !q.shouldRetry(ctx, err, attempt) {
+			return result, err
+		}
+		if waitErr := q.backoff(ctx, err, attempt); waitErr != nil {
+			return nil, err
+		}
+	}
+}
+
+func (q *queryService) executeOnce(ctx context.Context, qry string, qryParams map[string]any) (*Response, error) {
 
 	// Build request body.
 	var reqPayload any
@@ -126,12 +151,29 @@ func (q *queryService) Execute(ctx context.Context, qry string, qryParams map[st
 // entire lifetime of a stream, from request start through full consumption —
 // callers streaming very large or slowly-consumed results should raise
 // WithTimeout accordingly.
+//
+// Retryable Neo.TransientError.* failures reported before the first Header
+// event (i.e. before any record has been delivered) are retried like Execute.
+// Errors that arrive mid-stream are never retried.
 func (q *queryService) ExecuteStream(ctx context.Context, qry string, qryParams map[string]any) (*StreamResult, error) {
 	if !q.streamingEnabled {
 		return nil, errors.New("query: ExecuteStream requires the client to be constructed with WithStreamingSupport(true)")
 	}
 
 	q.logger.DebugContext(ctx, "running streaming query")
+
+	for attempt := 0; ; attempt++ {
+		res, err := q.executeStreamOnce(ctx, qry, qryParams)
+		if err == nil || !q.shouldRetry(ctx, err, attempt) {
+			return res, err
+		}
+		if waitErr := q.backoff(ctx, err, attempt); waitErr != nil {
+			return nil, err
+		}
+	}
+}
+
+func (q *queryService) executeStreamOnce(ctx context.Context, qry string, qryParams map[string]any) (*StreamResult, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, q.timeout)
 
